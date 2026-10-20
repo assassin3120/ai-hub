@@ -1,0 +1,116 @@
+// 企画書・絵コンテの保存（ユーザーデータに JSON と画像）と、AI に頼む各工程のプロンプト
+const { app } = require('electron');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const { THEMES } = require('./renderer/plan-doc');
+
+const file = () => path.join(app.getPath('userData'), 'plans.json');
+const imageDir = (planId) => path.join(app.getPath('userData'), 'plans', planId);
+
+function list() {
+  try { return JSON.parse(fs.readFileSync(file(), 'utf8')); } catch { return []; }
+}
+
+function save(plan) {
+  const all = list().filter((x) => x.id !== plan.id);
+  all.push({ ...plan, updatedAt: new Date().toISOString() });
+  fs.mkdirSync(path.dirname(file()), { recursive: true });
+  fs.writeFileSync(file(), JSON.stringify(all, null, 2));
+  return all;
+}
+
+function remove(id) {
+  const all = list().filter((x) => x.id !== id);
+  fs.writeFileSync(file(), JSON.stringify(all, null, 2));
+  fs.rmSync(imageDir(id), { recursive: true, force: true });
+  return all;
+}
+
+// 絵コンテにはめた絵を保存して、そのファイルのパスを返す
+function saveImage(planId, dataUrl) {
+  const m = String(dataUrl).match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/);
+  if (!m) throw new Error('画像として読めませんでした');
+  const out = path.join(imageDir(planId), `${crypto.randomUUID()}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, Buffer.from(m[2], 'base64'));
+  return out;
+}
+
+const outline = (plan) => JSON.stringify({ title: plan.title, subtitle: plan.subtitle, sections: plan.sections }, null, 1);
+const refsText = (plan) => (plan.refs || []).map((r) => `- ${r.title} ${r.url || ''} ${r.note || ''}`).join('\n');
+const JSON_ONLY = '出力はJSONだけ。説明文やコードブロックは付けない。';
+
+// 工程ごとのプロンプト。先頭の【】は工程名（ログで見分けやすいように）
+const prompts = {
+  refs: (plan) => `【リファレンス集め】次の企画の参考になるリファレンスを6〜10件集めてください。
+過去の作品（MV・CM・映画・SNS動画など）、演出やデザインの参考、裏付けになる記事やデータを混ぜる。
+Web検索が使えるなら実際に調べて、本当にあるページのURLを入れる。確かでないURLは作らず空にする。
+note には「この企画のどこに効くか」を1文で書く。
+${JSON_ONLY}
+形式: {"refs":[{"title":"作品名・記事名","url":"https://...","source":"YouTube や媒体名","note":"参考にする点"}]}
+
+企画メモ:
+${plan.memo}
+${plan.refs?.length ? `\nすでにあるリファレンス（重複させない）:\n${refsText(plan)}` : ''}`,
+
+  structure: (plan) => `【構成】次のメモとリファレンスから、企画書の構成と本文を作ってください。
+映像・クリエイティブの企画書として、背景・課題／目的／コンセプト／ターゲット／表現・演出案／構成案／スケジュール／体制・予算 などから、この企画に必要な章だけを選ぶ（4〜8章）。
+1章はスライド1枚に収まる量にする（本文は200字前後。箇条書きは行頭に「・」）。メモにない数字や固有名詞は作らず「（要確認）」と書く。
+${JSON_ONLY}
+形式: {"title":"企画タイトル","subtitle":"ひとことで何をするか","sections":[{"heading":"章タイトル","body":"本文"}]}
+
+企画メモ:
+${plan.memo}
+${plan.refs?.length ? `\nリファレンス:\n${refsText(plan)}` : ''}
+${plan.sections?.length ? `\nいまの下書き（活かせるところは活かす）:\n${outline(plan)}` : ''}`,
+
+  polish: (plan) => `【推敲】次の企画書の文章を推敲してください。
+読み手は決裁者やクライアント。言い切りで短く、同じ言い回しの重複をなくし、章の順番が話の流れになるよう整える。
+事実や数字は変えない。表紙に載せる、企画の核を一言で表すキャッチコピー（tagline、20字以内）も作る。
+${JSON_ONLY}
+形式: {"title":"…","subtitle":"…","tagline":"…","sections":[{"heading":"…","body":"…"}]}
+
+企画書:
+${outline(plan)}`,
+
+  design: (plan) => `【デザイン】次の企画書に合う見た目を選んでください。
+theme は ${Object.entries(THEMES).map(([k, t]) => `${k}（${t.name}）`).join('、')} のどれか。accent は企画の雰囲気に合う差し色を #rrggbb で。
+${JSON_ONLY}
+形式: {"theme":"clean","accent":"#e8453c"}
+
+企画書:
+${outline(plan)}`,
+
+  cuts: (plan, seconds) => `【カット割り】次の企画から、映像の絵コンテのカット割りを作ってください。
+${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・セリフやテロップ・音）を書く。
+${JSON_ONLY}
+形式: {"cuts":[{"dur":3,"note":"ト書き"}]}
+
+企画書:
+${outline(plan)}
+${plan.memo ? `\n企画メモ:\n${plan.memo}` : ''}`,
+};
+
+function parseJson(text) {
+  try { return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)); } catch { return null; }
+}
+
+const str = (v) => String(v ?? '');
+const sections = (j) => (Array.isArray(j.sections) ? j.sections : []).map((s) => ({ heading: str(s.heading), body: str(s.body) })).filter((s) => s.heading || s.body);
+
+// AI の答えを、企画に上書きする項目だけにして返す
+const parsers = {
+  refs: (j) => ({ refs: (Array.isArray(j.refs) ? j.refs : []).map((r) => ({ title: str(r.title), url: /^https?:\/\//.test(r.url) ? r.url : '', source: str(r.source), note: str(r.note) })) }),
+  structure: (j) => ({ title: str(j.title), subtitle: str(j.subtitle), sections: sections(j) }),
+  polish: (j) => ({ title: str(j.title), subtitle: str(j.subtitle), tagline: str(j.tagline), sections: sections(j) }),
+  design: (j) => ({ theme: THEMES[j.theme] ? j.theme : 'clean', accent: /^#[0-9a-f]{6}$/i.test(j.accent) ? j.accent : '#e8453c' }),
+  cuts: (j) => ({ cuts: (Array.isArray(j.cuts) ? j.cuts : []).map((c) => ({ id: crypto.randomUUID(), dur: Number(c.dur) || 0, note: str(c.note) })) }),
+};
+
+function parseStep(step, text) {
+  const j = parseJson(text);
+  return j ? parsers[step](j) : null;
+}
+
+module.exports = { list, save, remove, saveImage, prompts, parseStep };

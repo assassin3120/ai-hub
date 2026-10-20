@@ -1,7 +1,7 @@
 // CLIコネクタを1回実行して、出力をストリームで流しつつ最後にまとめて返す。
 const { spawn } = require('child_process');
 
-function runCli(c, prompt, { cwd, onData } = {}) {
+function runCli(c, prompt, { cwd, onData, web } = {}) {
   return new Promise((resolve) => {
     let output = '';
     let error = '';
@@ -11,7 +11,7 @@ function runCli(c, prompt, { cwd, onData } = {}) {
       finished = true;
       resolve({ code, output, error });
     };
-    const child = spawn(c.command, c.args(prompt), { cwd: cwd || undefined, shell: process.platform === 'win32' });
+    const child = spawn(c.command, c.args(prompt, { web }), { cwd: cwd || undefined, shell: process.platform === 'win32' });
     // 日本語が途中で切れて文字化けしないよう、バイト列ではなく文字列で受け取る
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');

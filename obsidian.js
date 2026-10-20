@@ -125,4 +125,15 @@ function logInvoice(vault, inv, c, pdfPath) {
   fs.writeFileSync(file, `---\nnumber: ${inv.number}\nclient: ${JSON.stringify(inv.client || '')}\ndate: ${inv.date}\ndue: ${inv.dueDate || ''}\namount: ${c.due}\n---\n\n# ${inv.number} ${inv.client || ''}\n\n${inv.subject ? `件名：${inv.subject}\n\n` : ''}| 品目 | 数量 | 単価 | 税率 |\n|---|---|---|---|\n${c.items.map((it) => `| ${it.name} | ${it.qty}${it.unit || ''} | ${yen(it.price)} | ${it.rate ?? 10}% |`).join('\n')}\n\n- 小計 ${yen(c.subtotal)} / 消費税 ${yen(c.tax)} / 合計 ${yen(c.total)}${c.wh ? ` / 源泉徴収 −${yen(c.wh)}` : ''}\n- **ご請求額 ${yen(c.due)}**\n- PDF: file://${encodeURI(pdfPath)}\n`);
 }
 
-module.exports = { ROOT, logConversation, logOrchestration, importHistory, logInvoice };
+// 企画書を書き出したら、本文とリファレンスをノートにも残す
+function logPlan(vault, plan, pdfPath) {
+  if (!vault) return;
+  const file = path.join(vault, ROOT, '企画書', `${safeName(plan.title || '無題の企画')}.md`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const refs = (plan.refs || []).map((r) => `- ${r.url ? `[${r.title || r.url}](${r.url})` : r.title}${r.note ? ` — ${r.note}` : ''}`).join('\n');
+  const cuts = (plan.cuts || []).map((c, i) => `| ${i + 1} | ${c.dur ?? ''}秒 | ${String(c.note ?? '').replace(/\n/g, ' ').replace(/\|/g, '／')} |`).join('\n');
+  fs.writeFileSync(file, `---\ntitle: ${JSON.stringify(plan.title || '')}\nupdated: ${new Date().toISOString()}\n---\n\n# ${plan.title || '無題の企画'}\n\n${plan.subtitle ? `${plan.subtitle}\n\n` : ''}${plan.tagline ? `> ${plan.tagline}\n\n` : ''}${(plan.sections || []).map((s) => `## ${s.heading}\n\n${s.body}`).join('\n\n')}\n${refs ? `\n## リファレンス\n\n${refs}\n` : ''}${cuts ? `\n## 絵コンテ\n\n| No | 尺 | ト書き |\n|---|---|---|\n${cuts}\n` : ''}\n- PDF: file://${encodeURI(pdfPath)}\n`);
+  return file;
+}
+
+module.exports = { ROOT, logConversation, logOrchestration, importHistory, logInvoice, logPlan };
