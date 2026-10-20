@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const { loadConnectors } = require('./connectors');
+const { route } = require('./router');
 
 const connectors = loadConnectors();
 
@@ -16,6 +17,8 @@ function createWindow() {
 // レンダラには関数を含まない情報だけ渡す
 ipcMain.handle('connectors:list', () =>
   connectors.map(({ id, name, icon, kind, url }) => ({ id, name, icon, kind, url })));
+
+ipcMain.handle('router:route', (_e, prompt) => route(prompt, connectors));
 
 // CLIコネクタの実行。出力はストリームでレンダラへ流す。
 ipcMain.on('cli:run', (event, { id, prompt, runId }) => {
