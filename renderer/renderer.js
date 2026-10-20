@@ -41,33 +41,38 @@ function chatShell(placeholder, onSend) {
   const log = pane.querySelector('.log');
   const input = pane.querySelector('textarea');
   input.placeholder = `${placeholder}（⌘+Enterで送信）`;
+  // display は画面と記録に出す短い文。ブラウザから送るときはページ本文を隠して質問だけ見せる
+  const send = (text, display = text) => {
+    log.append(el('div', 'msg user', display));
+    onSend(text, log, display);
+    scrollDown(log);
+  };
   const submit = (e) => {
     e?.preventDefault();
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
-    log.append(el('div', 'msg user', text));
-    onSend(text, log);
-    scrollDown(log);
+    send(text);
   };
+  pane.send = send;
   pane.querySelector('form').addEventListener('submit', submit);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e); });
   return pane;
 }
 
-function startRun(log, id, prompt, via) {
+function startRun(log, id, prompt, via, display) {
   const runId = crypto.randomUUID();
   runs[runId] = log.appendChild(el('div', 'msg'));
-  window.hub.runCli(id, prompt, runId, via);
+  window.hub.runCli(id, prompt, runId, via, display);
 }
 
 function chatPane(c) {
-  return chatShell(`${c.name} に話しかける`, (prompt, log) => startRun(log, c.id, prompt));
+  return chatShell(`${c.name} に話しかける`, (prompt, log, display) => startRun(log, c.id, prompt, undefined, display));
 }
 
 // おまかせ：送るたびに得意なAIを選ぶ
 function autoPane(cliList) {
-  const showRoute = (log, r, prompt) => {
+  const showRoute = (log, r, prompt, display) => {
     const badge = el('div', 'msg route');
     badge.innerHTML = '→ <b></b> に依頼しました <span></span>';
     badge.querySelector('b').textContent = r.name;
@@ -75,14 +80,15 @@ function autoPane(cliList) {
     for (const other of cliList.filter((x) => x.id !== r.id)) {
       const b = el('button', null, `${other.name}でやり直す`);
       b.type = 'button';
-      b.onclick = () => { b.disabled = true; showRoute(log, { ...other, reason: '手動で切り替え' }, prompt); };
+      b.onclick = () => { b.disabled = true; showRoute(log, { ...other, reason: '手動で切り替え' }, prompt, display); };
       badge.append(b);
     }
     log.append(badge);
-    startRun(log, r.id, prompt, 'おまかせ');
+    startRun(log, r.id, prompt, 'おまかせ', display);
   };
-  return chatShell('依頼を書くと、得意なAIに自動で振り分けます', async (prompt, log) => {
-    showRoute(log, await window.hub.route(prompt), prompt);
+  return chatShell('依頼を書くと、得意なAIに自動で振り分けます', async (prompt, log, display) => {
+    // ページ本文の言葉に引っ張られないよう、振り分けは質問文だけで決める
+    showRoute(log, await window.hub.route(display), prompt, display);
   });
 }
 
@@ -127,11 +133,11 @@ window.hub.onOrchEvent((ev) => {
 });
 
 function orchestraPane() {
-  return chatShell('司令塔に依頼すると、作業を分けて各担当に回します', (request, log) => {
+  return chatShell('司令塔に依頼すると、作業を分けて各担当に回します', (request, log, display) => {
     const orchId = crypto.randomUUID();
     const board = log.appendChild(el('div', 'board'));
     orchestras[orchId] = { log, board, cards: [] };
-    window.hub.startOrchestra(request, orchId);
+    window.hub.startOrchestra(request, orchId, display);
   });
 }
 
@@ -173,6 +179,78 @@ function settingsPane() {
   return pane;
 }
 
+// ブラウザ：ふつうに見て回り、見ているページや動画の字幕をそのままAIに渡す
+const MAX_PAGE_CHARS = 60000;
+const KIND_LABEL = { selection: '選択した部分', video: '動画', page: 'ページ', 'page-with-video': 'ページ' };
+
+function browserPane(c, targets) {
+  const pane = el('section', 'pane browser');
+  pane.innerHTML = `<div class="toolbar">
+      <button type="button" data-nav="back" title="戻る">←</button>
+      <button type="button" data-nav="forward" title="進む">→</button>
+      <button type="button" data-nav="reload" title="再読み込み">↻</button>
+      <input class="address" spellcheck="false">
+    </div>
+    <div class="body">
+      <webview></webview>
+      <aside class="ask">
+        <b>このページをAIに聞く</b>
+        <small>選択した部分があればそこだけ、YouTube なら字幕を読み取ります</small>
+        <select></select>
+        <textarea>このページの内容を日本語で要約して</textarea>
+        <button type="button" class="primary">読み取って送る</button>
+        <p class="result"></p>
+      </aside>
+    </div>`;
+  const wv = pane.querySelector('webview');
+  const address = pane.querySelector('.address');
+  wv.setAttribute('partition', `persist:${c.id}`);
+  wv.setAttribute('allowpopups', ''); // 新しいタブのリンクは main.js で同じ画面に開き直す
+  wv.src = c.url;
+
+  const go = (text) => {
+    const t = text.trim();
+    if (!t) return;
+    const url = /^https?:\/\//.test(t) ? t
+      : /^[^\s]+\.[a-z]{2,}(\/|$)/i.test(t) ? `https://${t}`
+        : `https://www.google.com/search?q=${encodeURIComponent(t)}`;
+    wv.loadURL(url).catch(() => { /* 読み込み失敗はページ側にエラー表示が出る */ });
+  };
+  address.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(address.value); });
+  for (const ev of ['did-navigate', 'did-navigate-in-page']) wv.addEventListener(ev, () => { address.value = wv.getURL(); });
+  for (const b of pane.querySelectorAll('[data-nav]')) {
+    b.onclick = () => ({ back: () => wv.canGoBack() && wv.goBack(), forward: () => wv.canGoForward() && wv.goForward(), reload: () => wv.reload() })[b.dataset.nav]();
+  }
+
+  const select = pane.querySelector('select');
+  for (const t of targets) select.append(Object.assign(el('option', null, `${t.icon} ${t.name}に送る`), { value: t.id }));
+  const question = pane.querySelector('textarea');
+  const result = pane.querySelector('.result');
+  pane.querySelector('.primary').onclick = async () => {
+    result.textContent = '読み取っています…';
+    let page;
+    try {
+      page = await wv.executeJavaScript(`(${extractPage.toString()})()`);
+    } catch (e) {
+      result.textContent = `読み取れませんでした: ${e.message}`;
+      return;
+    }
+    if (!page.text || page.url.startsWith('chrome-error:')) {
+      result.textContent = '読み取れる内容がありませんでした。ページが開けているか確かめてください。';
+      return;
+    }
+    const cut = page.text.length > MAX_PAGE_CHARS;
+    const body = cut ? `${page.text.slice(0, MAX_PAGE_CHARS)}\n…（長いので途中まで）` : page.text;
+    const q = question.value.trim() || 'この内容を要約して';
+    const prompt = `${q}\n\n---\n種類: ${KIND_LABEL[page.kind]}\nタイトル: ${page.title}\nURL: ${page.url}\n\n${body}`;
+    const display = `🌐 ${KIND_LABEL[page.kind]}「${page.title}」を読み取って：${q}\n${page.url}`;
+    panes[select.value].send(prompt, display);
+    show(select.value);
+    result.textContent = `${page.text.length.toLocaleString()}文字を送りました${page.kind === 'video' && !page.hasTranscript ? '（この動画は字幕が見つからず、概要欄だけです）' : ''}`;
+  };
+  return pane;
+}
+
 function webPane(c) {
   const pane = el('section', 'pane');
   const wv = document.createElement('webview');
@@ -206,7 +284,10 @@ window.hub.listConnectors().then((connectors) => {
     b.querySelector('small').textContent = c.name;
     b.onclick = () => show(c.id);
     sidebar.append(b);
-    panes[c.id] = c.make ? c.make() : c.kind === 'cli' ? chatPane(c) : webPane(c);
+    panes[c.id] = c.make ? c.make()
+      : c.kind === 'cli' ? chatPane(c)
+        : c.kind === 'browser' ? browserPane(c, [...hubs, ...cliList])
+          : webPane(c);
     stage.append(panes[c.id]);
   }
   if (list.length) show(list[0].id);
