@@ -132,11 +132,20 @@ Claude Code・Codex のCLIは Node.js 製なので同じ言語で扱いやすく
 Tauri はアプリが軽い反面、Rust が必要でWebアプリ埋め込みの制約も多いので、まずは作りやすさを優先した。
 
 ## 動かし方（Mac）
+
+**アプリとして入れる（おすすめ）**
+```
+npm install
+npm run install-app
+```
+`AI Hub.app` が作られてアプリケーションフォルダに入り、そのまま起動します。次からは Launchpad や Dock から普通のアプリとして開けます。更新したときも、同じ 2 行をもう一度実行すれば入れ替わります。
+
+**開発中にそのまま動かす**
 ```
 npm install
 npm start
 ```
-Claude / Codex を使うには、`claude` と `codex` のCLIをインストールしてログインしておく。
+Claude / Codex を使うには、`claude` と `codex` のCLIをインストールしてログインしておく。Finder から開いても、ターミナルと同じ PATH で CLI を探します。
 
 ## アプリを追加する例
 `connectors/slack.js`
