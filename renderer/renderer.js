@@ -253,7 +253,7 @@ function browserPane(c, targets) {
 
 function makeWebview(c) {
   const wv = document.createElement('webview');
-  wv.setAttribute('partition', `persist:${c.id}`); // アプリごとにログイン状態を保持（同じアプリなら画面が違っても共通）
+  wv.setAttribute('partition', `persist:${c.partition ?? c.id}`); // アプリごとにログイン状態を保持（同じアプリなら画面が違っても共通）
   wv.setAttribute('allowpopups', ''); // 新しいタブのリンクは main.js で同じ画面に開き直す
   wv.src = c.url;
   return wv;
@@ -301,7 +301,7 @@ window.hub.listConnectors().then((connectors) => {
   const list = [...hubs, ...connectors, { id: 'settings', name: '設定', icon: '⚙️', kind: 'settings', make: settingsPane }];
   let lastKind = null;
   for (const c of list) {
-    const group = c.kind === 'split' ? 'web' : c.kind;
+    const group = c.group ?? (c.kind === 'split' ? 'web' : c.kind);
     if (lastKind && lastKind !== group) sidebar.append(document.createElement('hr'));
     lastKind = group;
     const b = el('button');
