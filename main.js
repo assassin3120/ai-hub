@@ -57,7 +57,7 @@ async function run(sender, id, prompt, { runId = crypto.randomUUID(), pane, labe
 
 // レンダラには関数を含まない情報だけ渡す
 ipcMain.handle('connectors:list', () =>
-  connectors.map(({ id, name, icon, kind, url }) => ({ id, name, icon, kind, url })));
+  connectors.map(({ id, name, icon, kind, url, panes }) => ({ id, name, icon, kind, url, panes })));
 
 ipcMain.handle('router:route', (_e, prompt) => route(prompt, connectors));
 
