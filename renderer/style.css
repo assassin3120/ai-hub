@@ -60,3 +60,39 @@ button.link { display: block; margin: 0 auto 14px; max-width: 760px; background:
 .split .col-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid #eee; }
 .split .col-head button { border: 0; background: none; cursor: pointer; font-size: 15px; border-radius: 6px; }
 .split .col-head button:hover { background: #eee; }
+.invoice { background: #eceae4; }
+.inv-list { width: 220px; flex: none; background: #fff; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.inv-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.inv-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; display: grid; font-size: 12px; color: #666; }
+.inv-list li b { color: #222; font-size: 13px; }
+.inv-list li .amt { color: #222; }
+.inv-list li:hover, .inv-list li.active { background: #f1efe9; }
+.invoice button { padding: 7px 12px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; font: inherit; font-size: 13px; }
+.invoice button.primary { background: #222; color: #fff; border-color: #222; }
+.inv-edit { width: 460px; flex: none; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #fafaf8; border-right: 1px solid #ddd; }
+.inv-edit label { display: grid; gap: 3px; font-size: 12px; color: #666; }
+.inv-edit input, .inv-edit select, .inv-edit textarea { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; background: #fff; min-width: 0; }
+.inv-edit .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.inv-edit .wide { grid-column: 1 / -1; }
+.inv-edit .row { display: flex; gap: 6px; }
+.inv-edit .row input { flex: 1; }
+.inv-edit label.check { display: flex; align-items: center; gap: 6px; align-self: end; color: #222; }
+.inv-edit .items { width: 100%; border-collapse: collapse; font-size: 12px; }
+.inv-edit .items th { text-align: left; font-weight: 500; color: #888; padding: 2px; }
+.inv-edit .items td { padding: 2px; }
+.inv-edit .items input, .inv-edit .items select { width: 100%; padding: 5px; }
+.inv-edit .items select { width: 64px; }
+.inv-edit .items .num { width: 80px; text-align: right; }
+.inv-edit .items .unit { width: 44px; }
+.inv-edit .items .x { padding: 2px 8px; border: 0; background: none; color: #999; }
+.inv-edit .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inv-edit .msg { font-size: 12px; color: #555; }
+.inv-edit .draft { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px; }
+.inv-edit .draft summary { cursor: pointer; font-weight: 600; }
+.inv-edit .draft textarea { width: 100%; height: 70px; margin: 8px 0; }
+.inv-preview { flex: 1; overflow: auto; padding: 24px; min-width: 0; }
+.inv-preview .paper { width: 794px; min-height: 1123px; margin: 0 auto; box-shadow: 0 2px 12px rgba(0,0,0,.12); transform-origin: top center; zoom: .75; background: #fff; }
+.settings .issuer { display: grid; gap: 8px; }
+.settings .issuer label { display: grid; gap: 4px; font-weight: 400; color: #555; margin-top: 0; }
+.settings .issuer input, .settings .issuer textarea { font: inherit; padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; }
+.settings h2 { margin-top: 24px; }
