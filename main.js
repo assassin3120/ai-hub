@@ -8,6 +8,8 @@ const { runCli } = require('./runner');
 const { orchestrate } = require('./orchestrator');
 const obsidian = require('./obsidian');
 const settings = require('./settings');
+const invoices = require('./invoices');
+const { calc } = require('./renderer/invoice-doc');
 
 // Finder から起動すると PATH にシェルの設定が入らず claude / codex が見つからないので、ログインシェルから取り直す
 if (process.platform === 'darwin') {
@@ -81,6 +83,31 @@ ipcMain.on('orch:start', async (event, { request, orchId, display = request }) =
   } catch (e) {
     emit({ type: 'error', message: e.message });
   }
+});
+
+ipcMain.handle('invoice:list', () => invoices.list());
+ipcMain.handle('invoice:save', (_e, inv) => invoices.save(inv));
+ipcMain.handle('invoice:remove', (_e, id) => invoices.remove(id));
+ipcMain.handle('invoice:nextNumber', (_e, date) => invoices.nextNumber(date));
+ipcMain.handle('invoice:draft', async (event, memo) => {
+  const clients = [...new Set(invoices.list().map((x) => x.client).filter(Boolean))];
+  const res = await run(event.sender, leaderId, invoices.draftPrompt(memo, clients), { silent: true });
+  const draft = invoices.parseDraft(res.output);
+  if (!draft) throw new Error(res.error || '下書きを読み取れませんでした');
+  return draft;
+});
+ipcMain.handle('invoice:pdf', async (_e, inv) => {
+  const { invoiceDir, workDir, vault } = settings.get();
+  const r = await dialog.showSaveDialog({
+    defaultPath: path.join(invoiceDir || workDir || app.getPath('documents'), `請求書_${inv.number}_${inv.client || ''}.pdf`),
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (r.canceled) return null;
+  await invoices.toPdf(inv, settings.get().issuer ?? {}, r.filePath);
+  settings.set({ invoiceDir: path.dirname(r.filePath) });
+  try { obsidian.logInvoice(vault, inv, calc(inv), r.filePath); } catch (e) { console.error(e); }
+  shell.showItemInFolder(r.filePath);
+  return r.filePath;
 });
 
 ipcMain.handle('settings:get', () => settings.get());

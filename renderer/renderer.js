@@ -155,8 +155,26 @@ function settingsPane() {
       <button id="open-obsidian">Obsidian で開く</button>
     </div>
     <p id="import-result"></p>
+    <h2>請求書の発行者</h2>
+    <div class="issuer">
+      <label>名前・屋号<input data-issuer="name"></label>
+      <label>適格請求書の登録番号<input data-issuer="regNo" placeholder="T1234567890123"></label>
+      <label>住所<textarea data-issuer="address" rows="2"></textarea></label>
+      <label>連絡先<textarea data-issuer="contact" rows="2" placeholder="電話・メール"></textarea></label>
+      <label>振込先<textarea data-issuer="bank" rows="3" placeholder="〇〇銀行 〇〇支店 普通 1234567 名義"></textarea></label>
+    </div>
   </div>`;
-  const fill = (s) => { for (const i of pane.querySelectorAll('input[data-key]')) i.value = s[i.dataset.key] ?? ''; };
+  const fill = (s) => {
+    for (const i of pane.querySelectorAll('input[data-key]')) i.value = s[i.dataset.key] ?? '';
+    for (const i of pane.querySelectorAll('[data-issuer]')) i.value = s.issuer?.[i.dataset.issuer] ?? '';
+  };
+  for (const i of pane.querySelectorAll('[data-issuer]')) {
+    i.addEventListener('change', async () => {
+      const issuer = Object.fromEntries([...pane.querySelectorAll('[data-issuer]')].map((x) => [x.dataset.issuer, x.value]));
+      await window.hub.setSettings({ issuer });
+      panes.invoice?.refresh?.();
+    });
+  }
   window.hub.getSettings().then(fill);
   for (const b of pane.querySelectorAll('[data-pick]')) {
     b.onclick = async () => {
@@ -259,6 +277,139 @@ function makeWebview(c) {
   return wv;
 }
 
+// 請求書：作る・保存する・PDFにする。AI に案件メモから下書きさせることもできる
+const today = () => new Date().toLocaleDateString('sv-SE');
+const endOfNextMonth = (d) => { const t = new Date(d); return new Date(t.getFullYear(), t.getMonth() + 2, 0).toLocaleDateString('sv-SE'); };
+
+function invoicePane() {
+  const pane = el('section', 'pane invoice');
+  pane.innerHTML = `<aside class="inv-list"><button type="button" class="primary new">＋ 新しい請求書</button><ul></ul></aside>
+    <div class="inv-edit">
+      <details class="draft"><summary>✨ メモからAIに下書きさせる</summary>
+        <textarea placeholder="例：ABC株式会社にヨルシカMVの撮影費30万円と編集費15万円、源泉あり"></textarea>
+        <button type="button" class="go">下書きを作る</button><span class="msg"></span></details>
+      <div class="grid">
+        <label>請求番号<input data-f="number"></label>
+        <label>請求日<input type="date" data-f="date"></label>
+        <label class="wide">宛先<span class="row"><input data-f="client" list="inv-clients" placeholder="取引先名"><select data-f="honorific"><option>御中</option><option>様</option></select></span></label>
+        <label class="wide">件名<input data-f="subject"></label>
+        <label>お支払期限<input type="date" data-f="dueDate"></label>
+        <label class="check"><input type="checkbox" data-f="withholding">源泉徴収する</label>
+      </div>
+      <datalist id="inv-clients"></datalist>
+      <table class="items"><thead><tr><th>品目</th><th>数量</th><th>単位</th><th>単価（税抜）</th><th>税率</th><th></th></tr></thead><tbody></tbody></table>
+      <button type="button" class="add">＋ 行を追加</button>
+      <label class="wide">備考<textarea data-f="note" rows="2"></textarea></label>
+      <div class="actions"><button type="button" class="primary save">保存</button><button type="button" class="pdf">PDFに書き出す</button><button type="button" class="dup">複製して新規</button><button type="button" class="del">削除</button><span class="msg status"></span></div>
+    </div>
+    <div class="inv-preview"><div class="paper"></div></div>`;
+  const $ = (q) => pane.querySelector(q);
+  const status = $('.status');
+  let all = [];
+  let inv;
+  let issuer = {};
+
+  const blank = async () => {
+    const date = today();
+    return { id: crypto.randomUUID(), number: await window.hub.invoices.nextNumber(date), date, dueDate: endOfNextMonth(date), client: '', honorific: '御中', subject: '', items: [{ name: '', qty: 1, unit: '式', price: 0, rate: 10 }], withholding: false, note: '' };
+  };
+
+  const preview = () => {
+    $('.paper').innerHTML = window.invoiceDoc.invoiceHtml(inv, issuer);
+    const c = window.invoiceDoc.calc(inv);
+    status.textContent = `ご請求額 ¥${c.due.toLocaleString('ja-JP')}`;
+  };
+
+  const renderItems = () => {
+    const tb = $('.items tbody');
+    tb.textContent = '';
+    inv.items.forEach((it, i) => {
+      const tr = el('tr');
+      tr.innerHTML = `<td><input data-k="name"></td><td><input data-k="qty" type="number" step="any" class="num"></td><td><input data-k="unit" class="unit"></td>
+        <td><input data-k="price" type="number" step="1" class="num"></td><td><select data-k="rate"><option value="10">10%</option><option value="8">8%</option></select></td><td><button type="button" class="x" title="行を消す">×</button></td>`;
+      for (const input of tr.querySelectorAll('[data-k]')) {
+        input.value = it[input.dataset.k] ?? '';
+        input.addEventListener('input', () => {
+          const k = input.dataset.k;
+          it[k] = ['qty', 'price', 'rate'].includes(k) ? Number(input.value) : input.value;
+          preview();
+        });
+      }
+      tr.querySelector('.x').onclick = () => { inv.items.splice(i, 1); renderItems(); preview(); };
+      tb.append(tr);
+    });
+  };
+
+  const fill = () => {
+    for (const input of pane.querySelectorAll('.inv-edit [data-f]')) {
+      if (input.type === 'checkbox') input.checked = Boolean(inv[input.dataset.f]);
+      else input.value = inv[input.dataset.f] ?? '';
+    }
+    renderItems();
+    preview();
+    for (const li of pane.querySelectorAll('.inv-list li')) li.classList.toggle('active', li.dataset.id === inv.id);
+  };
+
+  const renderList = () => {
+    const ul = $('.inv-list ul');
+    ul.textContent = '';
+    for (const x of [...all].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.number.localeCompare(a.number))) {
+      const li = el('li');
+      li.dataset.id = x.id;
+      li.append(el('b', null, x.client || '（宛先なし）'), el('span', null, `${x.number}・${x.date}`), el('span', 'amt', `¥${window.invoiceDoc.calc(x).due.toLocaleString('ja-JP')}`));
+      li.onclick = () => { inv = structuredClone(x); fill(); };
+      ul.append(li);
+    }
+    $('#inv-clients').replaceChildren(...[...new Set(all.map((x) => x.client).filter(Boolean))].map((v) => Object.assign(el('option'), { value: v })));
+  };
+
+  for (const input of pane.querySelectorAll('.inv-edit [data-f]')) {
+    input.addEventListener('input', () => { inv[input.dataset.f] = input.type === 'checkbox' ? input.checked : input.value; preview(); });
+  }
+  $('.add').onclick = () => { inv.items.push({ name: '', qty: 1, unit: '', price: 0, rate: 10 }); renderItems(); preview(); };
+  $('.new').onclick = async () => { inv = await blank(); fill(); };
+  $('.save').onclick = async () => { all = await window.hub.invoices.save(inv); renderList(); fill(); status.textContent = '保存しました'; };
+  $('.dup').onclick = async () => {
+    const date = today();
+    inv = { ...structuredClone(inv), id: crypto.randomUUID(), date, dueDate: endOfNextMonth(date), number: await window.hub.invoices.nextNumber(date) };
+    fill();
+  };
+  $('.del').onclick = async () => {
+    if (!all.some((x) => x.id === inv.id)) { inv = await blank(); fill(); return; }
+    if (!confirm(`${inv.number} を削除しますか？`)) return;
+    all = await window.hub.invoices.remove(inv.id); renderList(); inv = await blank(); fill();
+  };
+  $('.pdf').onclick = async () => {
+    all = await window.hub.invoices.save(inv); renderList();
+    try {
+      const out = await window.hub.invoices.pdf(inv);
+      if (out) status.textContent = `PDFを書き出しました：${out}`;
+    } catch (e) { status.textContent = `書き出せませんでした：${e.message}`; }
+  };
+  $('.draft .go').onclick = async () => {
+    const memo = $('.draft textarea').value.trim();
+    const msg = $('.draft .msg');
+    if (!memo) return;
+    msg.textContent = 'Claudeが下書き中…';
+    try {
+      const d = await window.hub.invoices.draft(memo);
+      inv = { ...inv, ...d, items: d.items.length ? d.items : inv.items };
+      fill();
+      msg.textContent = '下書きを入れました。金額を確かめてから保存してください。';
+    } catch (e) { msg.textContent = `うまくいきませんでした：${e.message.replace(/^.*Error: /, '')}`; }
+  };
+
+  pane.refresh = async () => { issuer = (await window.hub.getSettings()).issuer ?? {}; if (inv) preview(); };
+  (async () => {
+    all = await window.hub.invoices.list();
+    await pane.refresh();
+    inv = await blank();
+    renderList();
+    fill();
+  })();
+  return pane;
+}
+
 function webPane(c) {
   const pane = el('section', 'pane');
   pane.append(makeWebview(c));
@@ -290,6 +441,8 @@ function show(id) {
   for (const b of sidebar.querySelectorAll('button')) b.classList.toggle('active', b.dataset.id === id);
 }
 
+document.head.append(Object.assign(document.createElement('style'), { textContent: window.invoiceDoc.INVOICE_CSS }));
+
 window.hub.listConnectors().then((connectors) => {
   names = Object.fromEntries(connectors.map((c) => [c.id, c.name]));
   const cliList = connectors.filter((c) => c.kind === 'cli');
@@ -298,7 +451,8 @@ window.hub.listConnectors().then((connectors) => {
     { id: 'orchestra', name: '司令塔', icon: '🎼', kind: 'hub', make: orchestraPane },
     { id: 'auto', name: 'おまかせ', icon: '✨', kind: 'hub', make: () => autoPane(cliList) },
   ] : [];
-  const list = [...hubs, ...connectors, { id: 'settings', name: '設定', icon: '⚙️', kind: 'settings', make: settingsPane }];
+  const tools = [{ id: 'invoice', name: '請求書', icon: '🧾', kind: 'tool', make: invoicePane }];
+  const list = [...hubs, ...connectors, ...tools, { id: 'settings', name: '設定', icon: '⚙️', kind: 'settings', make: settingsPane }];
   let lastKind = null;
   for (const c of list) {
     const group = c.group ?? (c.kind === 'split' ? 'web' : c.kind);

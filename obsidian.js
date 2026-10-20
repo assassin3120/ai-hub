@@ -116,4 +116,13 @@ function importHistory(vault, home = os.homedir()) {
   return counts;
 }
 
-module.exports = { ROOT, logConversation, logOrchestration, importHistory };
+// 請求書を書き出したら、一覧で振り返れるよう1件1ノート残す（同じ番号は上書き）
+function logInvoice(vault, inv, c, pdfPath) {
+  if (!vault) return;
+  const file = path.join(vault, ROOT, '請求書', `${inv.number} ${safeName(inv.client || '')}.md`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const yen = (n) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
+  fs.writeFileSync(file, `---\nnumber: ${inv.number}\nclient: ${JSON.stringify(inv.client || '')}\ndate: ${inv.date}\ndue: ${inv.dueDate || ''}\namount: ${c.due}\n---\n\n# ${inv.number} ${inv.client || ''}\n\n${inv.subject ? `件名：${inv.subject}\n\n` : ''}| 品目 | 数量 | 単価 | 税率 |\n|---|---|---|---|\n${c.items.map((it) => `| ${it.name} | ${it.qty}${it.unit || ''} | ${yen(it.price)} | ${it.rate ?? 10}% |`).join('\n')}\n\n- 小計 ${yen(c.subtotal)} / 消費税 ${yen(c.tax)} / 合計 ${yen(c.total)}${c.wh ? ` / 源泉徴収 −${yen(c.wh)}` : ''}\n- **ご請求額 ${yen(c.due)}**\n- PDF: file://${encodeURI(pdfPath)}\n`);
+}
+
+module.exports = { ROOT, logConversation, logOrchestration, importHistory, logInvoice };
