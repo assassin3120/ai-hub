@@ -18,6 +18,9 @@ if (process.platform === 'darwin') {
   } catch { /* 取れなければ今の PATH のまま */ }
 }
 
+// Electron の名前が入った User-Agent だと Google などにログインを断られるので、普通の Chrome として名乗る
+app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|ai-hub)\/\S+/g, '');
+
 const connectors = loadConnectors();
 const cliMembers = connectors.filter((c) => c.kind === 'cli');
 const leaderId = (cliMembers.find((c) => c.default) ?? cliMembers[0])?.id;
@@ -58,9 +61,9 @@ ipcMain.handle('connectors:list', () =>
 
 ipcMain.handle('router:route', (_e, prompt) => route(prompt, connectors));
 
-ipcMain.on('cli:run', (event, { id, prompt, runId, via }) => run(event.sender, id, prompt, { runId, via }));
+ipcMain.on('cli:run', (event, { id, prompt, runId, via, display }) => run(event.sender, id, prompt, { runId, via, display }));
 
-ipcMain.on('orch:start', async (event, { request, orchId }) => {
+ipcMain.on('orch:start', async (event, { request, orchId, display = request }) => {
   const sender = event.sender;
   const emit = (ev) => { if (!sender.isDestroyed()) sender.send('orch:event', { orchId, ...ev }); };
   try {
@@ -70,10 +73,10 @@ ipcMain.on('orch:start', async (event, { request, orchId }) => {
       leaderId,
       emit,
       run: (id, prompt, opts) => run(sender, id, prompt, opts.silent ? { silent: true }
-        : opts.summary ? { pane: 'orchestra', label: '📝 まとめ', display: `「${request}」の結果のまとめ`, via: '司令塔', from: '司令塔' }
+        : opts.summary ? { pane: 'orchestra', label: '📝 まとめ', display: `「${display}」の結果のまとめ`, via: '司令塔', from: '司令塔' }
           : { pane: id, label: `🎼 司令塔より「${opts.task.title}」`, display: opts.task.instruction, via: '司令塔', from: '司令塔' }),
     });
-    const note = obsidian.logOrchestration(settings.get().vault, { request, ...result, names });
+    const note = obsidian.logOrchestration(settings.get().vault, { ...result, request: display, names });
     if (note) emit({ type: 'note', path: note });
   } catch (e) {
     emit({ type: 'error', message: e.message });
@@ -94,6 +97,15 @@ ipcMain.handle('obsidian:import', () => {
 ipcMain.handle('obsidian:open', (_e, file) => {
   const target = file ?? path.join(settings.get().vault ?? '', obsidian.ROOT);
   return shell.openExternal(`obsidian://open?path=${encodeURIComponent(target)}`);
+});
+
+// ページ内の「新しいタブで開く」リンクは、同じ画面で開く
+app.on('web-contents-created', (_e, wc) => {
+  if (wc.getType() !== 'webview') return;
+  wc.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) wc.loadURL(url);
+    return { action: 'deny' };
+  });
 });
 
 app.whenReady().then(() => {
