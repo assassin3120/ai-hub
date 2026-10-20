@@ -20,3 +20,25 @@ form button { padding: 0 18px; border: 0; border-radius: 8px; background: #222; 
 .msg.route { font-size: 13px; color: #555; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .msg.route span { color: #888; }
 .msg.route button { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+#sidebar button.busy::after { content: ''; position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #4caf50; transform: translate(18px, -18px); }
+#sidebar button { position: relative; }
+.msg.assigned { background: #ece7f6; padding: 10px 14px; border-radius: 10px; }
+.msg.assigned b { display: block; font-size: 13px; margin-bottom: 4px; }
+.board { max-width: 760px; margin: 0 auto 14px; display: flex; flex-direction: column; gap: 6px; }
+.board .note { color: #888; font-size: 13px; }
+.task { display: grid; grid-template-columns: 80px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; background: #fff; font: inherit; cursor: pointer; }
+.task .who { font-weight: 600; }
+.task .state { font-size: 12px; color: #888; }
+.task.running { border-color: #4caf50; }
+.task.running .state { color: #2e7d32; }
+.task.done .state { color: #555; }
+.task.failed { border-color: #b3261e; }
+.task.failed .state { color: #b3261e; }
+button.link { display: block; margin: 0 auto 14px; max-width: 760px; background: none; border: 0; color: #6a4fb3; cursor: pointer; font: inherit; text-decoration: underline; }
+.settings { overflow-y: auto; }
+.settings .form { max-width: 640px; margin: 0 auto; padding: 32px 20px; display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.settings label { font-weight: 600; margin-top: 12px; }
+.settings label small { display: block; font-weight: normal; color: #888; font-size: 12px; }
+.settings .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings input { flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; font: inherit; background: #fff; }
+.settings button { padding: 8px 14px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; font: inherit; }
