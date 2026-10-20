@@ -205,7 +205,7 @@ function browserPane(c, targets) {
   const wv = pane.querySelector('webview');
   const address = pane.querySelector('.address');
   wv.setAttribute('partition', `persist:${c.id}`);
-  wv.setAttribute('allowpopups', ''); // 新しいタブのリンクは main.js で同じ画面に開き直す
+  wv.setAttribute('allowpopups', '');
   wv.src = c.url;
 
   const go = (text) => {
@@ -251,12 +251,37 @@ function browserPane(c, targets) {
   return pane;
 }
 
+function makeWebview(c) {
+  const wv = document.createElement('webview');
+  wv.setAttribute('partition', `persist:${c.id}`); // アプリごとにログイン状態を保持（同じアプリなら画面が違っても共通）
+  wv.setAttribute('allowpopups', ''); // 新しいタブのリンクは main.js で同じ画面に開き直す
+  wv.src = c.url;
+  return wv;
+}
+
 function webPane(c) {
   const pane = el('section', 'pane');
-  const wv = document.createElement('webview');
-  wv.src = c.url;
-  wv.setAttribute('partition', `persist:${c.id}`); // アプリごとにログイン状態を保持
-  pane.append(wv);
+  pane.append(makeWebview(c));
+  return pane;
+}
+
+// 複数のアプリを横に並べて同時に見る（SNS など）
+function splitPane(c, byId) {
+  const pane = el('section', 'pane split');
+  for (const id of c.panes) {
+    const app = byId[id];
+    if (!app) continue;
+    const col = el('div', 'col');
+    const head = el('div', 'col-head');
+    const reload = el('button', null, '↻');
+    reload.type = 'button';
+    reload.title = '再読み込み';
+    head.append(el('span', null, `${app.icon} ${app.name}`), reload);
+    const wv = makeWebview(app);
+    reload.onclick = () => wv.reload();
+    col.append(head, wv);
+    pane.append(col);
+  }
   return pane;
 }
 
@@ -268,6 +293,7 @@ function show(id) {
 window.hub.listConnectors().then((connectors) => {
   names = Object.fromEntries(connectors.map((c) => [c.id, c.name]));
   const cliList = connectors.filter((c) => c.kind === 'cli');
+  const byId = Object.fromEntries(connectors.map((c) => [c.id, c]));
   const hubs = cliList.length > 1 ? [
     { id: 'orchestra', name: '司令塔', icon: '🎼', kind: 'hub', make: orchestraPane },
     { id: 'auto', name: 'おまかせ', icon: '✨', kind: 'hub', make: () => autoPane(cliList) },
@@ -275,8 +301,9 @@ window.hub.listConnectors().then((connectors) => {
   const list = [...hubs, ...connectors, { id: 'settings', name: '設定', icon: '⚙️', kind: 'settings', make: settingsPane }];
   let lastKind = null;
   for (const c of list) {
-    if (lastKind && lastKind !== c.kind) sidebar.append(document.createElement('hr'));
-    lastKind = c.kind;
+    const group = c.kind === 'split' ? 'web' : c.kind;
+    if (lastKind && lastKind !== group) sidebar.append(document.createElement('hr'));
+    lastKind = group;
     const b = el('button');
     b.dataset.id = c.id;
     b.title = c.name;
@@ -287,7 +314,8 @@ window.hub.listConnectors().then((connectors) => {
     panes[c.id] = c.make ? c.make()
       : c.kind === 'cli' ? chatPane(c)
         : c.kind === 'browser' ? browserPane(c, [...hubs, ...cliList])
-          : webPane(c);
+          : c.kind === 'split' ? splitPane(c, byId)
+            : webPane(c);
     stage.append(panes[c.id]);
   }
   if (list.length) show(list[0].id);
