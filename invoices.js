@@ -1,5 +1,6 @@
 // 請求書の保存（ユーザーデータに JSON）、番号の採番、PDF 書き出し
-const { app, BrowserWindow } = require('electron');
+const { app } = require('electron');
+const { htmlToPdf } = require('./pdf');
 const fs = require('fs');
 const path = require('path');
 const { invoiceHtml, INVOICE_CSS } = require('./renderer/invoice-doc');
@@ -31,18 +32,8 @@ function nextNumber(date) {
   return `INV-${ym}-${String(Math.max(0, ...used) + 1).padStart(3, '0')}`;
 }
 
-async function toPdf(inv, issuer, outPath) {
-  const html = `<!doctype html><meta charset="utf-8"><style>@page{size:A4;margin:0}body{margin:0}${INVOICE_CSS}</style>${invoiceHtml(inv, issuer)}`;
-  const win = new BrowserWindow({ show: false, webPreferences: { javascript: false } });
-  try {
-    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, pdf);
-    return outPath;
-  } finally {
-    win.destroy();
-  }
+function toPdf(inv, issuer, outPath) {
+  return htmlToPdf(`<!doctype html><meta charset="utf-8"><style>@page{size:A4;margin:0}body{margin:0}${INVOICE_CSS}</style>${invoiceHtml(inv, issuer)}`, outPath);
 }
 
 // 司令塔と同じく、Claude に案件メモから請求書の下書きを JSON で作らせる

@@ -2,7 +2,8 @@ module.exports = {
   id: 'claude', name: 'Claude', icon: '✳️', kind: 'cli', order: 1,
   // Claude Code の非対話モード。ログイン済みの claude CLI を使う。
   command: 'claude',
-  args: (prompt) => ['-p', prompt],
+  // web: リファレンス集めなど、Web検索を使ってよい作業のとき
+  args: (prompt, { web } = {}) => ['-p', prompt, ...(web ? ['--allowedTools', 'WebSearch', 'WebFetch'] : [])],
   // おまかせ振り分けで使う得意分野。どちらにも当てはまらないときは default のAIに回す。
   default: true,
   strengths: {
