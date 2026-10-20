@@ -3,6 +3,37 @@
   "version": "0.1.0",
   "description": "Claude・Codex・普段使いのアプリをひとつにまとめるハブ（プロトタイプ）",
   "main": "main.js",
-  "scripts": { "start": "electron ." },
-  "devDependencies": { "electron": "^33.0.0" }
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dir --publish never",
+    "install-app": "bash scripts/install-mac.sh"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "productName": "AI Hub",
+  "build": {
+    "appId": "com.ryo.aihub",
+    "productName": "AI Hub",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!scripts/**",
+      "!build/**",
+      "!README.md"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": "-",
+      "target": [
+        "dir"
+      ]
+    }
+  }
 }
