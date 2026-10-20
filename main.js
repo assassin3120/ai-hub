@@ -1,10 +1,27 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { spawn } = require('child_process');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const path = require('path');
 const { loadConnectors } = require('./connectors');
 const { route } = require('./router');
+const { runCli } = require('./runner');
+const { orchestrate } = require('./orchestrator');
+const obsidian = require('./obsidian');
+const settings = require('./settings');
+
+// Finder から起動すると PATH にシェルの設定が入らず claude / codex が見つからないので、ログインシェルから取り直す
+if (process.platform === 'darwin') {
+  try {
+    const out = execFileSync(process.env.SHELL || '/bin/zsh', ['-ilc', 'printf "__PATH__%s" "$PATH"'], { encoding: 'utf8', timeout: 5000 });
+    const p = out.split('__PATH__').pop();
+    if (p) process.env.PATH = p;
+  } catch { /* 取れなければ今の PATH のまま */ }
+}
 
 const connectors = loadConnectors();
+const cliMembers = connectors.filter((c) => c.kind === 'cli');
+const leaderId = (cliMembers.find((c) => c.default) ?? cliMembers[0])?.id;
+const names = Object.fromEntries(connectors.map((c) => [c.id, c.name]));
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -14,24 +31,76 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
+// CLIを1回実行する。画面へのストリームと Obsidian への記録もここで行う。
+//   pane   : 指定すると、その画面に新しい作業として表示する（司令塔から回した作業など）
+//   silent : 画面にも記録にも出さない（司令塔の計画づくり）
+async function run(sender, id, prompt, { runId = crypto.randomUUID(), pane, label, display, via, from, silent } = {}) {
+  const c = cliMembers.find((x) => x.id === id);
+  const send = (ch, msg) => { if (!silent && !sender.isDestroyed()) sender.send(ch, msg); };
+  if (!c) return { code: -1, output: '', error: `${id} は見つかりません` };
+  if (pane) send('run:start', { runId, pane, label, display: display ?? prompt });
+  const res = await runCli(c, prompt, {
+    cwd: settings.get().workDir,
+    onData: (type, data) => send('cli:event', { runId, type, data }),
+  });
+  send('cli:event', { runId, type: 'done', data: String(res.code) });
+  if (!silent) {
+    try {
+      obsidian.logConversation(settings.get().vault, { name: c.name, via, from, prompt: display ?? prompt, output: res.output || res.error });
+    } catch (e) { console.error('Obsidian への記録に失敗:', e); }
+  }
+  return res;
+}
+
 // レンダラには関数を含まない情報だけ渡す
 ipcMain.handle('connectors:list', () =>
   connectors.map(({ id, name, icon, kind, url }) => ({ id, name, icon, kind, url })));
 
 ipcMain.handle('router:route', (_e, prompt) => route(prompt, connectors));
 
-// CLIコネクタの実行。出力はストリームでレンダラへ流す。
-ipcMain.on('cli:run', (event, { id, prompt, runId }) => {
-  const c = connectors.find((x) => x.id === id && x.kind === 'cli');
-  if (!c) return;
-  const child = spawn(c.command, c.args(prompt), { shell: process.platform === 'win32' });
-  const send = (type, data) => event.sender.send('cli:event', { runId, type, data: String(data) });
-  child.stdout.on('data', (d) => send('out', d));
-  child.stderr.on('data', (d) => send('err', d));
-  child.on('error', (e) => send('err', `${c.command} を起動できません: ${e.message}\n`));
-  child.on('close', (code) => send('done', code));
+ipcMain.on('cli:run', (event, { id, prompt, runId, via }) => run(event.sender, id, prompt, { runId, via }));
+
+ipcMain.on('orch:start', async (event, { request, orchId }) => {
+  const sender = event.sender;
+  const emit = (ev) => { if (!sender.isDestroyed()) sender.send('orch:event', { orchId, ...ev }); };
+  try {
+    const result = await orchestrate({
+      request,
+      members: cliMembers,
+      leaderId,
+      emit,
+      run: (id, prompt, opts) => run(sender, id, prompt, opts.silent ? { silent: true }
+        : opts.summary ? { pane: 'orchestra', label: '📝 まとめ', display: `「${request}」の結果のまとめ`, via: '司令塔', from: '司令塔' }
+          : { pane: id, label: `🎼 司令塔より「${opts.task.title}」`, display: opts.task.instruction, via: '司令塔', from: '司令塔' }),
+    });
+    const note = obsidian.logOrchestration(settings.get().vault, { request, ...result, names });
+    if (note) emit({ type: 'note', path: note });
+  } catch (e) {
+    emit({ type: 'error', message: e.message });
+  }
 });
 
-app.whenReady().then(createWindow);
+ipcMain.handle('settings:get', () => settings.get());
+ipcMain.handle('settings:set', (_e, patch) => settings.set(patch));
+ipcMain.handle('settings:pickFolder', async () => {
+  const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+  return r.canceled ? null : r.filePaths[0];
+});
+ipcMain.handle('obsidian:import', () => {
+  const { vault } = settings.get();
+  if (!vault) throw new Error('先に Obsidian の保管庫を選んでください');
+  return obsidian.importHistory(vault);
+});
+ipcMain.handle('obsidian:open', (_e, file) => {
+  const target = file ?? path.join(settings.get().vault ?? '', obsidian.ROOT);
+  return shell.openExternal(`obsidian://open?path=${encodeURIComponent(target)}`);
+});
+
+app.whenReady().then(() => {
+  createWindow();
+  // 起動のたびに、アプリの外で使った Claude Code・Codex の会話も取り込んでおく
+  const { vault } = settings.get();
+  if (vault) setImmediate(() => { try { obsidian.importHistory(vault); } catch (e) { console.error(e); } });
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
