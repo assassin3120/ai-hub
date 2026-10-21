@@ -11,7 +11,12 @@ function runCli(c, prompt, { cwd, onData, web } = {}) {
       finished = true;
       resolve({ code, output, error });
     };
-    const child = spawn(c.command, c.args(prompt, { web }), { cwd: cwd || undefined, shell: process.platform === 'win32' });
+    const child = spawn(c.command, c.args(prompt, { web }), {
+      cwd: cwd || undefined,
+      shell: process.platform === 'win32',
+      // 標準入力をつながないと claude -p が「stdin を3秒待った」と警告するので、最初から閉じておく
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     // 日本語が途中で切れて文字化けしないよう、バイト列ではなく文字列で受け取る
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
