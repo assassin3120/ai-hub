@@ -1,0 +1,9 @@
+{
+  "appId": "com.ryo.kikaku-conte",
+  "productName": "企画・絵コンテ",
+  "extraMetadata": { "main": "main-plan.js", "name": "kikaku-conte", "productName": "企画・絵コンテ" },
+  "directories": { "output": "dist-plan", "buildResources": "build" },
+  "files": ["**/*", "!dist/**", "!dist-plan/**", "!scripts/**", "!build/**", "!README.md", "!electron-builder-plan.json"],
+  "mac": { "category": "public.app-category.productivity", "icon": "build/plan-icon.png", "identity": "-", "target": ["dir"] },
+  "linux": { "target": ["dir"], "executableName": "kikaku-conte" }
+}

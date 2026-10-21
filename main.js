@@ -1,5 +1,4 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const path = require('path');
 const { loadConnectors } = require('./connectors');
@@ -10,19 +9,10 @@ const obsidian = require('./obsidian');
 const settings = require('./settings');
 const invoices = require('./invoices');
 const { calc } = require('./renderer/invoice-doc');
-const plans = require('./plans');
-const planDoc = require('./renderer/plan-doc');
-const { htmlToPdf } = require('./pdf');
-const { pathToFileURL } = require('url');
+const { registerPlanIpc } = require('./plan-ipc');
+const { fixPath } = require('./shell-path');
 
-// Finder から起動すると PATH にシェルの設定が入らず claude / codex が見つからないので、ログインシェルから取り直す
-if (process.platform === 'darwin') {
-  try {
-    const out = execFileSync(process.env.SHELL || '/bin/zsh', ['-ilc', 'printf "__PATH__%s" "$PATH"'], { encoding: 'utf8', timeout: 5000 });
-    const p = out.split('__PATH__').pop();
-    if (p) process.env.PATH = p;
-  } catch { /* 取れなければ今の PATH のまま */ }
-}
+fixPath();
 
 // Electron の名前が入った User-Agent だと Google などにログインを断られるので、普通の Chrome として名乗る
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|ai-hub)\/\S+/g, '');
@@ -115,43 +105,8 @@ ipcMain.handle('invoice:pdf', async (_e, inv) => {
   return r.filePath;
 });
 
-// 企画書・絵コンテ
-ipcMain.handle('plan:list', () => plans.list());
-ipcMain.handle('plan:save', (_e, plan) => plans.save(plan));
-ipcMain.handle('plan:remove', (_e, id) => plans.remove(id));
-ipcMain.handle('plan:saveImage', (_e, planId, dataUrl) => plans.saveImage(planId, dataUrl));
-// 工程を1つ AI に頼む（refs / structure / polish / design / cuts）
-ipcMain.handle('plan:step', async (event, plan, step, opts = {}) => {
-  const res = await run(event.sender, leaderId, plans.prompts[step](plan, opts.seconds), { silent: true, web: step === 'refs' });
-  const out = plans.parseStep(step, res.output);
-  if (!out) throw new Error(res.error?.trim() || 'AIの答えを読み取れませんでした');
-  return out;
-});
-// kind: proposal（企画書。withStoryboard で絵コンテも付ける）/ storyboard / blank（手描き用の空テンプレート）
-ipcMain.handle('plan:pdf', async (_e, plan, kind, opts = {}) => {
-  const { planDir, workDir, vault, issuer } = settings.get();
-  const label = { proposal: '企画書', storyboard: '絵コンテ', blank: '絵コンテテンプレート' }[kind];
-  const r = await dialog.showSaveDialog({
-    defaultPath: path.join(planDir || workDir || app.getPath('documents'), `${label}_${(plan.title || '無題').replace(/[\\/:*?"<>|]/g, '')}.pdf`),
-    filters: [{ name: 'PDF', extensions: ['pdf'] }],
-  });
-  if (r.canceled) return null;
-  await planPdf(plan, kind, { ...opts, author: issuer?.name }, r.filePath);
-  settings.set({ planDir: path.dirname(r.filePath) });
-  if (kind === 'proposal') try { obsidian.logPlan(vault, plan, r.filePath); } catch (e) { console.error(e); }
-  shell.showItemInFolder(r.filePath);
-  return r.filePath;
-});
-ipcMain.handle('shell:openUrl', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
-
-function planPdf(plan, kind, opts, outPath) {
-  const imageUrl = (p) => pathToFileURL(p).href;
-  const body = kind === 'proposal' ? planDoc.proposalHtml(plan, { ...opts, imageUrl })
-    : planDoc.storyboardHtml(plan, { blank: kind === 'blank', pages: opts.pages, imageUrl });
-  // 企画書は横、絵コンテは縦。同じ PDF の中でページごとに向きを変える
-  const css = `@page land{size:A4 landscape;margin:0}@page port{size:A4 portrait;margin:0}.pp-page{page:land}.sb-page{page:port}body{margin:0}${planDoc.PLAN_CSS}`;
-  return htmlToPdf(`<!doctype html><meta charset="utf-8"><style>${css}</style>${body}`, outPath, { preferCSSPageSize: true });
-}
+// 企画書・絵コンテ（単独アプリと共通）。AI は司令塔と同じリーダーに頼む
+registerPlanIpc({ ask: (sender, prompt, { web }) => run(sender, leaderId, prompt, { silent: true, web }) });
 
 ipcMain.handle('settings:get', () => settings.get());
 ipcMain.handle('settings:set', (_e, patch) => settings.set(patch));
