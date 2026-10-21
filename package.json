@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --mac dir --publish never",
-    "install-app": "bash scripts/install-mac.sh"
+    "install-app": "bash scripts/install-mac.sh",
+    "start-plan": "electron main-plan.js",
+    "install-plan-app": "bash scripts/install-mac.sh electron-builder-plan.json '企画・絵コンテ'"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -23,9 +25,11 @@
     "files": [
       "**/*",
       "!dist/**",
+      "!dist-plan/**",
       "!scripts/**",
       "!build/**",
-      "!README.md"
+      "!README.md",
+      "!electron-builder-plan.json"
     ],
     "mac": {
       "category": "public.app-category.productivity",

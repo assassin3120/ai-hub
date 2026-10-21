@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>企画・絵コンテ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="standalone">
+  <main id="stage"></main>
+  <script src="common.js"></script>
+  <script src="plan-doc.js"></script>
+  <script src="plan-pane.js"></script>
+  <script>
+    document.head.append(Object.assign(document.createElement('style'), { textContent: window.planDoc.PLAN_CSS }));
+    const pane = planPane();
+    pane.classList.add('active');
+    document.getElementById('stage').append(pane);
+  </script>
+</body>
+</html>
