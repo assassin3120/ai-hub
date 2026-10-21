@@ -877,6 +877,8 @@ function show(id) {
 
 document.head.append(Object.assign(document.createElement('style'), { textContent: window.invoiceDoc.INVOICE_CSS + window.planDoc.PLAN_CSS }));
 
+sidebar.append(el('div', 'brand', 'AI Hub'));
+
 window.hub.listConnectors().then((connectors) => {
   names = Object.fromEntries(connectors.map((c) => [c.id, c.name]));
   const cliList = connectors.filter((c) => c.kind === 'cli');
@@ -898,7 +900,8 @@ window.hub.listConnectors().then((connectors) => {
     const b = el('button');
     b.dataset.id = c.id;
     b.title = c.name;
-    b.innerHTML = `${c.icon}<small></small>`;
+    b.innerHTML = '<span class="ic"></span><small></small>';
+    b.querySelector('.ic').textContent = c.icon;
     b.querySelector('small').textContent = c.name;
     b.onclick = () => show(c.id);
     sidebar.append(b);
@@ -907,6 +910,8 @@ window.hub.listConnectors().then((connectors) => {
         : c.kind === 'browser' ? browserPane(c, [...hubs, ...cliList])
           : c.kind === 'split' ? splitPane(c, byId)
             : webPane(c);
+    // 会話の画面には、X のように上に名前の帯を付ける
+    if (panes[c.id].classList.contains('chat')) panes[c.id].prepend(el('header', 'pane-head', c.name));
     stage.append(panes[c.id]);
   }
   if (list.length) show(list[0].id);
