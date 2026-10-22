@@ -2,7 +2,7 @@
 :root {
   --bg: #1d1d1d;
   --bg-2: #141414;
-  --card: #2b2b2b;
+  --card: #262626;
   --ink: #000000;
   --on: #000000;
   --text: #e8e8e8;
@@ -13,10 +13,10 @@
   --accent: var(--teal);
   --red: #ff3b30;
   --green: #00a86b;
-  --line: #000000;
+  --line: #8c8c8c;
   --bw: 3px;
-  --b: var(--bw) solid var(--ink);
-  --b2: 2px solid var(--ink);
+  --b: var(--bw) solid var(--line);
+  --b2: 2px solid var(--line);
   --sh1: 3px 3px 0 var(--ink);
   --sh2: 6px 6px 0 var(--ink);
   --r: 4px;
@@ -50,7 +50,7 @@ button:not(:disabled):active { transform: translate(3px, 3px); box-shadow: none 
 #sidebar button { flex: none; position: relative; display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; padding: 0 12px; border: var(--b2); border-color: transparent; border-radius: var(--r); background: transparent; cursor: pointer; font-size: 16px; font-weight: 700; text-align: left; }
 #sidebar button .ic { font-size: 20px; width: 26px; text-align: center; position: relative; }
 #sidebar button small { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#sidebar button:hover { border-color: var(--ink); background: var(--card); box-shadow: var(--sh1); }
+#sidebar button:hover { border-color: var(--line); background: var(--card); box-shadow: var(--sh1); }
 #sidebar button.active { border: var(--b); background: var(--yellow); box-shadow: var(--sh1); font-weight: 900; color: var(--on); }
 #sidebar button.busy .ic::after { content: ''; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; background: var(--magenta); border: 2px solid var(--ink); color: var(--on); }
 #sidebar hr { width: 100%; border: 0; border-top: var(--b); margin: 6px 0; }
@@ -180,7 +180,7 @@ button.link:hover { background: var(--yellow); color: var(--on); }
 .inv-edit .draft summary { cursor: pointer; font-weight: 900; }
 .inv-edit .draft textarea { width: 100%; height: 76px; margin: 8px 0; font-size: 14px; padding: 8px 10px; border: var(--b2); border-radius: var(--r); }
 .inv-preview { flex: 1; overflow: auto; padding: 24px; min-width: 0; background: var(--bg-2); background-image: radial-gradient(#3a3a3a 1px, transparent 1px); background-size: 18px 18px; }
-.inv-preview .paper { width: 794px; min-height: 1123px; margin: 0 auto; border: 4px solid var(--ink); box-shadow: 12px 12px 0 var(--ink); transform-origin: top center; zoom: .75; background: #fff; color: #222; }
+.inv-preview .paper { width: 794px; min-height: 1123px; margin: 0 auto; border: 4px solid var(--line); box-shadow: 12px 12px 0 var(--ink); transform-origin: top center; zoom: .75; background: #fff; color: #222; }
 
 /* 企画・絵コンテ */
 .plan input, .plan select, .plan textarea { font: inherit; font-size: 14px; height: auto; padding: 8px 10px; border: var(--b2); border-radius: var(--r); min-width: 0; }
@@ -190,7 +190,7 @@ button.link:hover { background: var(--yellow); color: var(--on); }
 .pl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pl-top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--card); border-bottom: var(--b); }
 .pl-title { flex: 1; font-size: 22px !important; font-weight: 900; text-transform: uppercase; border-color: transparent !important; background: transparent !important; }
-.pl-title:hover { border-color: var(--ink) !important; }
+.pl-title:hover { border-color: var(--line) !important; }
 .plan .tabs { display: flex; gap: 6px; }
 .plan .tabs button { border: var(--b2); border-radius: var(--r); background: var(--card); padding: 8px 16px; color: var(--text); font-size: 15px; font-weight: 900; box-shadow: none; }
 .plan .tabs button:hover { background: var(--hover); }
@@ -236,7 +236,7 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--teal); }
 .plan .actions { display: flex; gap: 10px; align-items: center; padding-top: 4px; flex-wrap: wrap; }
 .pl-preview { flex: 1; min-width: 0; overflow: auto; padding: 24px; background: var(--bg-2); background-image: radial-gradient(#3a3a3a 1px, transparent 1px); background-size: 18px 18px; }
 .pl-preview .paper { zoom: .5; display: grid; gap: 32px; justify-content: safe center; }
-.pl-preview .pp-page { border: 5px solid var(--ink); box-shadow: 14px 14px 0 var(--ink); }
+.pl-preview .pp-page { border: 5px solid var(--line); box-shadow: 14px 14px 0 var(--ink); }
 
 /* トンマナ */
 .tone { display: grid; gap: 8px; padding: 12px; background: var(--card); border: var(--b); border-radius: var(--r); box-shadow: var(--sh1); }
