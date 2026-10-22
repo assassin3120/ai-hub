@@ -1,9 +1,16 @@
+const path = require('path');
+
 module.exports = {
   id: 'claude', name: 'Claude', icon: '✳️', kind: 'cli', order: 1,
   // Claude Code の非対話モード。ログイン済みの claude CLI を使う。
   command: 'claude',
   // web: リファレンス集めなど、Web検索を使ってよい作業のとき
-  args: (prompt, { web } = {}) => ['-p', prompt, ...(web ? ['--allowedTools', 'WebSearch', 'WebFetch'] : [])],
+  // images: 見てほしい画像。入っているフォルダを読めるようにして Read を許す
+  args: (prompt, { web, images = [] } = {}) => {
+    const tools = [...(web ? ['WebSearch', 'WebFetch'] : []), ...(images.length ? ['Read'] : [])];
+    const dirs = [...new Set(images.map((p) => path.dirname(p)))];
+    return ['-p', prompt, ...dirs.flatMap((d) => ['--add-dir', d]), ...(tools.length ? ['--allowedTools', ...tools] : [])];
+  },
   // おまかせ振り分けで使う得意分野。どちらにも当てはまらないときは default のAIに回す。
   default: true,
   strengths: {

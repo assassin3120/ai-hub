@@ -17,7 +17,7 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'plan.html'));
 }
 
-registerPlanIpc({ ask: (_sender, prompt, { web }) => runCli(claude, prompt, { cwd: settings.get().workDir, web }) });
+registerPlanIpc({ ask: (_sender, prompt, opts) => runCli(claude, prompt, { cwd: settings.get().workDir, ...opts }) });
 ipcMain.handle('settings:get', () => settings.get());
 ipcMain.handle('settings:set', (_e, patch) => settings.set(patch));
 

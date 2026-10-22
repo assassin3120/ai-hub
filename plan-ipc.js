@@ -1,5 +1,5 @@
 // 企画書・絵コンテの IPC。ハブ（main.js）と単独アプリ（main-plan.js）の両方で使う
-//   ask(sender, prompt, { web }) : AI に1回頼んで { output, error } を返す
+//   ask(sender, prompt, { web, images }) : AI に1回頼んで { output, error } を返す
 const { app, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -23,9 +23,10 @@ function registerPlanIpc({ ask }) {
   ipcMain.handle('plan:save', (_e, plan) => plans.save(plan));
   ipcMain.handle('plan:remove', (_e, id) => plans.remove(id));
   ipcMain.handle('plan:saveImage', (_e, planId, dataUrl) => plans.saveImage(planId, dataUrl));
-  // 工程を1つ AI に頼む（refs / structure / polish / design / cuts）
+  // 工程を1つ AI に頼む（refs / structure / polish / design / tone / cuts）
   ipcMain.handle('plan:step', async (event, plan, step, opts = {}) => {
-    const res = await ask(event.sender, plans.prompts[step](plan, opts.seconds), { web: step === 'refs' });
+    const images = step === 'tone' ? plans.toneImages(plan) : [];
+    const res = await ask(event.sender, plans.prompts[step](plan, opts.seconds), { web: step === 'refs', images });
     const out = plans.parseStep(step, res.output);
     if (!out) throw new Error(res.error?.trim() || 'AIの答えを読み取れませんでした');
     return out;

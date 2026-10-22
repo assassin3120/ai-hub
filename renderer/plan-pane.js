@@ -39,8 +39,16 @@ function planPane() {
           <div class="grid">
             <label class="wide">サブタイトル<input data-f="subtitle"></label>
             <label class="wide">キャッチコピー<input data-f="tagline"></label>
-            <label>デザイン<select data-f="theme">${Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('')}</select></label>
+            <label>デザイン<select data-f="theme">${Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('')}<option value="custom">トンマナ</option></select></label>
             <label>差し色<input type="color" data-f="accent"></label>
+          </div>
+          <div class="tone">
+            <b>雰囲気からトンマナを作る</b>
+            <div class="drop" tabindex="0"><span class="drop-hint">参考画像をドロップ／クリックで選ぶ／⌘Vで貼る</span></div>
+            <textarea class="tone-words" placeholder="言葉でも：例）90年代の雑誌みたいに。黄色と黒、太いゴシック、ずらした影"></textarea>
+            <div class="pl-run"><button type="button" class="primary tone-go">✨ この雰囲気にする</button><span class="swatches"></span></div>
+            <div class="tone-note"></div>
+            <input type="file" class="tone-file" accept="image/*" multiple hidden>
           </div>
           <div class="sections"></div>
           <button type="button" class="add-section">＋ 章を追加</button>
@@ -81,7 +89,7 @@ function planPane() {
   let plan;
   let saveTimer;
 
-  const blank = () => ({ id: crypto.randomUUID(), date: today(), title: '', memo: '', refs: [], subtitle: '', tagline: '', sections: [], theme: 'clean', accent: '#e8453c', aspect: '16:9', seconds: 30, cuts: [] });
+  const blank = () => ({ id: crypto.randomUUID(), date: today(), title: '', memo: '', refs: [], subtitle: '', tagline: '', sections: [], theme: 'clean', accent: '#e8453c', tone: { images: [], words: '' }, aspect: '16:9', seconds: 30, cuts: [] });
 
   // 変更はすぐ自動で保存する
   const persist = async () => {
@@ -158,7 +166,68 @@ function planPane() {
     });
   };
 
+  // ---- トンマナ
+  const renderTone = () => {
+    plan.tone ??= { images: [], words: '' };
+    const drop = $('.tone .drop');
+    drop.querySelectorAll('.shot').forEach((x) => x.remove());
+    $('.drop-hint').hidden = plan.tone.images.length > 0;
+    plan.tone.images.forEach((p, i) => {
+      const shot = el('span', 'shot');
+      const x = el('button', null, '×');
+      x.type = 'button';
+      x.title = '外す';
+      x.onclick = (e) => { e.stopPropagation(); plan.tone.images.splice(i, 1); renderTone(); changed(); };
+      shot.append(Object.assign(el('img'), { src: fileUrl(p), draggable: false }), x);
+      drop.append(shot);
+    });
+    $('.tone-words').value = plan.tone.words || '';
+    const sw = $('.tone .swatches');
+    sw.textContent = '';
+    const ct = plan.customTheme;
+    if (ct) {
+      sw.append(el('span', null, ct.name));
+      for (const c of [ct.bg, ct.ink, ct.cover, ct.accent, ct.accent2]) { const i = el('i'); i.style.background = c; i.title = c; sw.append(i); }
+    }
+    const opt = $('select[data-f=theme] option[value=custom]');
+    opt.textContent = ct ? `トンマナ：${ct.name}` : 'トンマナ（未作成）';
+    opt.disabled = !ct;
+    $('.tone-note').textContent = ct?.note || '';
+  };
+  const addToneImages = async (files) => {
+    const images = [...files].filter((f) => f.type.startsWith('image/'));
+    for (const f of images) plan.tone.images.push(await window.hub.plans.saveImage(plan.id, await readAsDataUrl(f)));
+    if (images.length) { renderTone(); changed(); }
+  };
+  const drop = $('.tone .drop');
+  drop.onclick = () => $('.tone-file').click();
+  drop.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('.tone-file').click(); } };
+  $('.tone-file').onchange = async (e) => { await addToneImages(e.target.files); e.target.value = ''; };
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); addToneImages(e.dataTransfer.files); };
+  drop.onpaste = (e) => { const files = [...e.clipboardData.items].map((it) => it.getAsFile()).filter(Boolean); if (files.length) { e.preventDefault(); addToneImages(files); } };
+  $('.tone-words').oninput = (e) => { plan.tone.words = e.target.value; changed(); };
+  $('.tone-go').onclick = async () => {
+    const note = $('.tone-note');
+    if (!plan.tone.images.length && !plan.tone.words.trim()) { note.textContent = '参考画像か、雰囲気を表す言葉を入れてください'; return; }
+    $('.tone-go').disabled = true;
+    note.textContent = '✱ 雰囲気を読み取っています…';
+    try {
+      await flush();
+      Object.assign(plan, await window.hub.plans.step(plan, 'tone'));
+      fill();
+      await persist();
+      note.textContent = plan.customTheme.note || 'トンマナを作りました';
+    } catch (e) {
+      note.textContent = `× 作れませんでした：${e.message.replace(/^.*Error: /, '')}`;
+    } finally {
+      $('.tone-go').disabled = false;
+    }
+  };
+
   const fill = () => {
+    renderTone();
     for (const input of pane.querySelectorAll('[data-f]')) input.value = plan[input.dataset.f] ?? '';
     renderRefs();
     renderSections();
@@ -199,6 +268,10 @@ function planPane() {
       for (const [i, s] of steps.entries()) {
         items[i].textContent = `✱ ${s.label}中…`;
         items[i].className = 'now';
+        // 雰囲気から作ったトンマナを使っているときは、デザインを選び直さない
+        if (s.id === 'design' && plan.theme === 'custom' && plan.customTheme) {
+          items[i].textContent = `✓ ${s.label}（トンマナを使用）`; items[i].className = 'done'; continue;
+        }
         const out = await window.hub.plans.step(plan, s.id);
         if (s.id === 'refs') {
           const seen = new Set(plan.refs.map((r) => r.url || r.title));
