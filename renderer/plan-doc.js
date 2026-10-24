@@ -9,6 +9,7 @@
     bold: { name: 'ボールド', bg: '#ffffff', ink: '#111111', sub: '#666666', cover: '#111111', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
     warm: { name: 'ナチュラル', bg: '#faf6ef', ink: '#3a3229', sub: '#8a7d6b', cover: '#efe6d6', coverInk: '#3a3229', font: '"Hiragino Mincho ProN", "Noto Serif JP", serif' },
     film: { name: 'シネマ', bg: '#16171a', ink: '#ececec', sub: '#9a9aa0', cover: '#000000', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
+    editorial: { name: 'エディトリアル', bg: '#ece6dc', ink: '#b2161e', sub: '#b2161ea0', cover: '#ece6dc', coverInk: '#b2161e', font: '"Manrope", "Avenir Next", "Hiragino Sans", "Noto Sans JP", sans-serif' },
   };
 
   // 送った雰囲気から AI が作るトンマナ（theme: 'custom'）で使える書体と飾り
