@@ -8,8 +8,42 @@
     clean: { name: 'クリーン', bg: '#ffffff', ink: '#1d1d1f', sub: '#6e6e73', cover: '#ffffff', coverInk: '#1d1d1f', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
     bold: { name: 'ボールド', bg: '#ffffff', ink: '#111111', sub: '#666666', cover: '#111111', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
     warm: { name: 'ナチュラル', bg: '#faf6ef', ink: '#3a3229', sub: '#8a7d6b', cover: '#efe6d6', coverInk: '#3a3229', font: '"Hiragino Mincho ProN", "Noto Serif JP", serif' },
+    editorial: { name: 'エディトリアル', bg: '#efe9df', ink: '#b1261e', sub: '#c46a62', cover: '#efe9df', coverInk: '#b1261e', font: '"Avenir Next", "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", sans-serif' },
     film: { name: 'シネマ', bg: '#16171a', ink: '#ececec', sub: '#9a9aa0', cover: '#000000', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
   };
+
+  // 送った雰囲気から AI が作るトンマナ（theme: 'custom'）で使える書体と飾り
+  const FONTS = {
+    sans: '"Hiragino Sans", "Noto Sans JP", sans-serif',
+    serif: '"Hiragino Mincho ProN", "Noto Serif JP", serif',
+    mono: '"SF Mono", Menlo, "Hiragino Sans", "Noto Sans JP", monospace',
+    rounded: '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Hiragino Sans", sans-serif',
+    condensed: '"Avenir Next Condensed", "Arial Narrow", "Hiragino Sans", "Noto Sans JP", sans-serif',
+  };
+  const BORDERS = { none: 'none', thin: '.5mm solid var(--ink)', thick: '1.4mm solid var(--ink)' };
+  const SHADOWS = { none: 'none', soft: '0 2mm 6mm rgba(0,0,0,.18)', hard: '2.6mm 2.6mm 0 var(--ink)' };
+  const LAYOUTS = ['left', 'center', 'split', 'block'];
+  const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : d);
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+
+  // AI の答えや保存済みのトンマナを、そのまま使える形にそろえる
+  function normalizeTheme(t = {}) {
+    const accent = hex(t.accent, '#e8453c');
+    return {
+      name: String(t.name || 'カスタム').slice(0, 24),
+      bg: hex(t.bg, '#ffffff'), ink: hex(t.ink, '#111111'), sub: hex(t.sub, '#666666'),
+      cover: hex(t.cover, hex(t.bg, '#ffffff')), coverInk: hex(t.coverInk, hex(t.ink, '#111111')),
+      accent, accent2: hex(t.accent2, accent),
+      font: pick(t.font, Object.keys(FONTS), 'sans'),
+      headingCase: pick(t.headingCase, ['none', 'upper'], 'none'),
+      headingWeight: Math.min(900, Math.max(300, Math.round((Number(t.headingWeight) || 700) / 100) * 100)),
+      border: pick(t.border, Object.keys(BORDERS), 'none'),
+      shadow: pick(t.shadow, Object.keys(SHADOWS), 'none'),
+      radius: Math.min(12, Math.max(0, Number(t.radius) || 0)),
+      coverLayout: pick(t.coverLayout, LAYOUTS, 'left'),
+      note: String(t.note || ''),
+    };
+  }
 
   const ASPECTS = { '16:9': 16 / 9, '9:16': 9 / 16, '4:3': 4 / 3, '1:1': 1, '2.39:1': 2.39 };
 
@@ -32,10 +66,18 @@
     return out.join('');
   }
 
-  function themeVars(plan) {
+  // いま使うデザイン。差し色は画面で選び直せるので plan.accent を優先する
+  function themeOf(plan) {
+    const accent = hex(plan.accent, '#e8453c');
+    if (plan.theme === 'custom' && plan.customTheme) return { ...normalizeTheme(plan.customTheme), accent };
     const t = THEMES[plan.theme] ?? THEMES.clean;
-    const accent = /^#[0-9a-f]{6}$/i.test(plan.accent || '') ? plan.accent : '#e8453c';
-    return `--bg:${t.bg};--ink:${t.ink};--sub:${t.sub};--cover:${t.cover};--cover-ink:${t.coverInk};--accent:${accent};--font:${t.font}`;
+    return { ...t, accent, accent2: accent, fontCss: t.font, headingCase: 'none', headingWeight: 700, border: 'none', shadow: 'none', radius: 0, coverLayout: 'left' };
+  }
+
+  function themeVars(t) {
+    return [`--bg:${t.bg}`, `--ink:${t.ink}`, `--sub:${t.sub}`, `--cover:${t.cover}`, `--cover-ink:${t.coverInk}`, `--accent:${t.accent}`, `--accent2:${t.accent2}`,
+      `--font:${t.fontCss ?? FONTS[t.font]}`, `--hcase:${t.headingCase === 'upper' ? 'uppercase' : 'none'}`, `--hweight:${t.headingWeight}`,
+      `--pborder:${BORDERS[t.border]}`, `--pshadow:${SHADOWS[t.shadow]}`, `--pradius:${t.radius}mm`].join(';');
   }
 
   // 企画書：表紙＋1章1ページ（スライド型の A4 横）＋リファレンス
@@ -70,7 +112,9 @@
         ${foot(total)}
       </section>`);
     }
-    const doc = `<div class="proposal" style="${themeVars(plan)}">${pages.join('')}</div>`;
+    const t = themeOf(plan);
+    const deco = [`cover-${t.coverLayout}`, t.border !== 'none' || t.shadow !== 'none' ? 'framed' : ''].filter(Boolean).join(' ');
+    const doc = `<div class="proposal ${deco}" style="${esc(themeVars(t))}">${pages.join('')}</div>`;
     return withStoryboard && (plan.cuts || []).length ? doc + storyboardHtml(plan, { imageUrl }) : doc;
   }
 
@@ -122,11 +166,22 @@
 .pp-cover-meta { position: absolute; left: 26mm; right: 26mm; bottom: 18mm; display: flex; justify-content: space-between; font-size: 10pt; opacity: .7; }
 .pp-num { color: var(--accent); font-size: 11pt; font-weight: 700; letter-spacing: .1em; }
 .pp-page h2 { font-size: 22pt; margin: 2mm 0 9mm; padding-bottom: 4mm; border-bottom: .4mm solid var(--accent); display: inline-block; }
+.proposal h1, .proposal h2 { text-transform: var(--hcase, none); font-weight: var(--hweight, 700); }
+.framed .pp-page::before { content: ''; position: absolute; inset: 9mm; border: var(--pborder); border-radius: var(--pradius); box-shadow: var(--pshadow); pointer-events: none; }
+.framed .pp-num { display: inline-block; margin-right: 3mm; padding: .6mm 2.4mm; color: var(--ink); background: var(--accent2); border: var(--pborder); border-radius: var(--pradius); }
+.framed .pp-page h2 { border-bottom-width: 1.4mm; }
+.cover-center .pp-cover { align-items: center; text-align: center; }
+.cover-center .pp-bar { left: 50%; margin-left: -9mm; }
+.cover-split .pp-cover::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 36%; background: var(--accent); border-left: var(--pborder); }
+.cover-split .pp-cover-main { max-width: 52%; }
+.cover-split .pp-cover-meta { right: 40%; }
+.cover-block .pp-cover-main { align-self: flex-start; max-width: 80%; padding: 10mm 12mm; background: var(--accent); color: var(--ink); border: var(--pborder); border-radius: var(--pradius); box-shadow: var(--pshadow); }
+.cover-block .pp-tagline { color: inherit; }
 .pp-body { font-size: 12.5pt; line-height: 1.9; max-width: 220mm; }
 .pp-body p { margin: 0 0 3mm; }
 .pp-body ul { margin: 0 0 3mm; padding-left: 6mm; }
 .pp-body li { margin-bottom: 1.5mm; }
-.pp-body li::marker { color: var(--accent); }
+.pp-body li::marker { color: var(--accent2, var(--accent)); }
 .pp-foot { position: absolute; left: 26mm; right: 26mm; bottom: 10mm; display: flex; justify-content: space-between; font-size: 8pt; color: var(--sub); }
 .pp-refs { font-size: 10pt; line-height: 1.5; columns: 2; column-gap: 12mm; padding-left: 5mm; margin: 0; }
 .pp-refs li { break-inside: avoid; margin-bottom: 4mm; }
@@ -149,7 +204,7 @@
 .sb-note { line-height: 1.6; white-space: normal; }
 `;
 
-  const api = { THEMES, ASPECTS, tc, totalDur, perPage, proposalHtml, storyboardHtml, PLAN_CSS };
+  const api = { THEMES, FONTS, normalizeTheme, themeOf, ASPECTS, tc, totalDur, perPage, proposalHtml, storyboardHtml, PLAN_CSS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.planDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

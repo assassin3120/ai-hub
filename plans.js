@@ -3,7 +3,7 @@ const { app } = require('electron');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { THEMES } = require('./renderer/plan-doc');
+const { THEMES, FONTS, normalizeTheme } = require('./renderer/plan-doc');
 
 const file = () => path.join(app.getPath('userData'), 'plans.json');
 const imageDir = (planId) => path.join(app.getPath('userData'), 'plans', planId);
@@ -35,6 +35,12 @@ function saveImage(planId, dataUrl) {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, Buffer.from(m[2], 'base64'));
   return out;
+}
+
+// トンマナの参考に送った画像のうち、この企画のフォルダに実際にあるものだけ
+function toneImages(plan) {
+  const dir = imageDir(plan.id);
+  return (plan.tone?.images || []).filter((p) => path.dirname(path.resolve(p)) === dir && fs.existsSync(p));
 }
 
 const outline = (plan) => JSON.stringify({ title: plan.title, subtitle: plan.subtitle, sections: plan.sections }, null, 1);
@@ -82,6 +88,20 @@ ${JSON_ONLY}
 企画書:
 ${outline(plan)}`,
 
+  tone: (plan) => {
+    const images = toneImages(plan);
+    return `【トンマナ】送られた雰囲気から、この企画書のトンマナ（色・書体・飾り）を作ってください。
+${images.length ? `参考画像（Read ツールで1枚ずつ開いて、色・文字の雰囲気・線や影・余白の取り方を読み取る）:\n${images.map((p) => `- ${p}`).join('\n')}\n` : ''}${plan.tone?.words ? `言葉での指定:\n${plan.tone.words}\n` : ''}
+色はすべて #rrggbb。bg は本文ページの地、ink は文字、sub は小さな注記、cover と coverInk は表紙の地と文字、accent と accent2 は差し色。文字と地のコントラストは十分にとる。
+font は ${Object.keys(FONTS).join(' / ')}、headingCase は none / upper、headingWeight は 300〜900、border は none / thin / thick、shadow は none / soft / hard（hard はずらした黒い影）、radius は角丸（mm、0〜12）、coverLayout は left / center / split / block。
+name はこのトンマナの短い名前、note は「どこをどう読み取ったか」を1〜2文で。
+${JSON_ONLY}
+形式: {"name":"…","bg":"#ffffff","ink":"#111111","sub":"#666666","cover":"#111111","coverInk":"#ffffff","accent":"#e8453c","accent2":"#ffd000","font":"sans","headingCase":"none","headingWeight":800,"border":"none","shadow":"none","radius":0,"coverLayout":"left","note":"…"}
+
+企画書:
+${outline(plan)}`;
+  },
+
   cuts: (plan, seconds) => `【カット割り】次の企画から、映像の絵コンテのカット割りを作ってください。
 ${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・セリフやテロップ・音）を書く。
 ${JSON_ONLY}
@@ -105,6 +125,7 @@ const parsers = {
   structure: (j) => ({ title: str(j.title), subtitle: str(j.subtitle), sections: sections(j) }),
   polish: (j) => ({ title: str(j.title), subtitle: str(j.subtitle), tagline: str(j.tagline), sections: sections(j) }),
   design: (j) => ({ theme: THEMES[j.theme] ? j.theme : 'clean', accent: /^#[0-9a-f]{6}$/i.test(j.accent) ? j.accent : '#e8453c' }),
+  tone: (j) => { const t = normalizeTheme(j); return { theme: 'custom', customTheme: t, accent: t.accent }; },
   cuts: (j) => ({ cuts: (Array.isArray(j.cuts) ? j.cuts : []).map((c) => ({ id: crypto.randomUUID(), dur: Number(c.dur) || 0, note: str(c.note) })) }),
 };
 
@@ -113,4 +134,4 @@ function parseStep(step, text) {
   return j ? parsers[step](j) : null;
 }
 
-module.exports = { list, save, remove, saveImage, prompts, parseStep };
+module.exports = { list, save, remove, saveImage, toneImages, prompts, parseStep };

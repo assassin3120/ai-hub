@@ -1,6 +1,7 @@
 // 企画書・絵コンテの IPC。ハブ（main.js）と単独アプリ（main-plan.js）の両方で使う
-//   ask(sender, prompt, { web }) : AI に1回頼んで { output, error } を返す
+//   ask(sender, prompt, { web, images }) : AI に1回頼んで { output, error } を返す
 const { app, ipcMain, dialog, shell } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const plans = require('./plans');
@@ -23,9 +24,10 @@ function registerPlanIpc({ ask }) {
   ipcMain.handle('plan:save', (_e, plan) => plans.save(plan));
   ipcMain.handle('plan:remove', (_e, id) => plans.remove(id));
   ipcMain.handle('plan:saveImage', (_e, planId, dataUrl) => plans.saveImage(planId, dataUrl));
-  // 工程を1つ AI に頼む（refs / structure / polish / design / cuts）
+  // 工程を1つ AI に頼む（refs / structure / polish / design / tone / cuts）
   ipcMain.handle('plan:step', async (event, plan, step, opts = {}) => {
-    const res = await ask(event.sender, plans.prompts[step](plan, opts.seconds), { web: step === 'refs' });
+    const images = step === 'tone' ? plans.toneImages(plan) : [];
+    const res = await ask(event.sender, plans.prompts[step](plan, opts.seconds), { web: step === 'refs', images });
     const out = plans.parseStep(step, res.output);
     if (!out) throw new Error(res.error?.trim() || 'AIの答えを読み取れませんでした');
     return out;
@@ -44,6 +46,27 @@ function registerPlanIpc({ ask }) {
     if (kind === 'proposal') try { obsidian.logPlan(vault, plan, r.filePath); } catch (e) { console.error(e); }
     shell.showItemInFolder(r.filePath);
     return r.filePath;
+  });
+  // Procreate 用のテンプレート（PNG、ページごと）を保存する。最初のファイルのパスを返す
+  ipcMain.handle('plan:saveTemplates', async (_e, plan, images) => {
+    const { planDir, workDir } = settings.get();
+    const base = `Procreate絵コンテ_${(plan.title || '無題').replace(/[\\/:*?"<>|]/g, '')}`;
+    const r = await dialog.showSaveDialog({
+      defaultPath: path.join(planDir || workDir || app.getPath('documents'), `${base}_p1.png`),
+      filters: [{ name: 'PNG', extensions: ['png'] }],
+    });
+    if (r.canceled) return null;
+    const stem = r.filePath.replace(/(_p1)?\.png$/i, '');
+    const files = images.map((dataUrl, i) => {
+      const m = String(dataUrl).match(/^data:image\/png;base64,(.+)$/);
+      if (!m) throw new Error('テンプレートを作れませんでした');
+      const out = `${stem}_p${i + 1}.png`;
+      fs.writeFileSync(out, Buffer.from(m[1], 'base64'));
+      return out;
+    });
+    settings.set({ planDir: path.dirname(files[0]) });
+    shell.showItemInFolder(files[0]);
+    return files[0];
   });
   ipcMain.handle('shell:openUrl', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
 }

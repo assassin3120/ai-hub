@@ -2,7 +2,7 @@ module.exports = {
   id: 'codex', name: 'Codex', icon: '🧩', kind: 'cli', order: 2,
   // OpenAI Codex CLI の非対話モード。
   command: 'codex',
-  args: (prompt) => ['exec', prompt],
+  args: (prompt, { images = [] } = {}) => ['exec', ...images.flatMap((p) => ['-i', p]), prompt],
   strengths: {
     label: 'コードの実装・修正',
     keywords: [

@@ -33,7 +33,7 @@ function createWindow() {
 // CLIを1回実行する。画面へのストリームと Obsidian への記録もここで行う。
 //   pane   : 指定すると、その画面に新しい作業として表示する（司令塔から回した作業など）
 //   silent : 画面にも記録にも出さない（司令塔の計画づくり）
-async function run(sender, id, prompt, { runId = crypto.randomUUID(), pane, label, display, via, from, silent, web } = {}) {
+async function run(sender, id, prompt, { runId = crypto.randomUUID(), pane, label, display, via, from, silent, web, images } = {}) {
   const c = cliMembers.find((x) => x.id === id);
   const send = (ch, msg) => { if (!silent && !sender.isDestroyed()) sender.send(ch, msg); };
   if (!c) return { code: -1, output: '', error: `${id} は見つかりません` };
@@ -41,6 +41,7 @@ async function run(sender, id, prompt, { runId = crypto.randomUUID(), pane, labe
   const res = await runCli(c, prompt, {
     cwd: settings.get().workDir,
     web,
+    images,
     onData: (type, data) => send('cli:event', { runId, type, data }),
   });
   send('cli:event', { runId, type: 'done', data: String(res.code) });
@@ -106,7 +107,7 @@ ipcMain.handle('invoice:pdf', async (_e, inv) => {
 });
 
 // 企画書・絵コンテ（単独アプリと共通）。AI は司令塔と同じリーダーに頼む
-registerPlanIpc({ ask: (sender, prompt, { web }) => run(sender, leaderId, prompt, { silent: true, web }) });
+registerPlanIpc({ ask: (sender, prompt, opts) => run(sender, leaderId, prompt, { silent: true, ...opts }) });
 
 ipcMain.handle('settings:get', () => settings.get());
 ipcMain.handle('settings:set', (_e, patch) => settings.set(patch));
