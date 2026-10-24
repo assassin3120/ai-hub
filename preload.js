@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('hub', {
     remove: (id) => ipcRenderer.invoke('plan:remove', id),
     saveImage: (planId, dataUrl) => ipcRenderer.invoke('plan:saveImage', planId, dataUrl),
     step: (plan, step, opts) => ipcRenderer.invoke('plan:step', plan, step, opts),
+    saveTemplates: (plan, images) => ipcRenderer.invoke('plan:saveTemplates', plan, images),
     pdf: (plan, kind, opts) => ipcRenderer.invoke('plan:pdf', plan, kind, opts),
   },
   openUrl: (url) => ipcRenderer.invoke('shell:openUrl', url),

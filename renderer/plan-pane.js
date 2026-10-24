@@ -66,6 +66,9 @@ function planPane() {
           <span class="spacer"></span>
           <label>白紙<input type="number" class="blank-pages num" value="2" min="1" max="20">ページ</label>
           <button type="button" class="blank-pdf">テンプレートをPDF</button>
+          <button type="button" class="pc-template">Procreate用テンプレート</button>
+          <button type="button" class="pc-import">Procreateから読み込む</button>
+          <input type="file" class="pc-file" accept="image/png,image/jpeg" multiple hidden>
           <button type="button" class="primary sb-pdf">絵コンテをPDF</button>
         </div>
         <div class="sb-msg"></div>
@@ -302,6 +305,50 @@ function planPane() {
   $('.pdf').onclick = () => exportPdf('proposal', { withStoryboard: $('.with-sb').checked });
   $('.sb-pdf').onclick = () => exportPdf('storyboard');
   $('.blank-pdf').onclick = () => exportPdf('blank', { pages: Number($('.blank-pages').value) || 2 });
+
+  // ---- Procreate：テンプレートを書き出し、描いたページを読み込んでコマごとにはめる
+  $('.pc-template').onclick = async () => {
+    const msg = $('.sb-msg');
+    msg.classList.remove('err');
+    const { perPage } = window.procreate.layout(plan.aspect);
+    const pages = Math.max(Number($('.blank-pages').value) || 1, Math.ceil(plan.cuts.length / perPage));
+    try {
+      const images = [];
+      for (let p = 0; p < pages; p++) images.push(await window.procreate.templatePage(plan, p, pages));
+      const out = await window.hub.plans.saveTemplates(plan, images);
+      if (out) msg.textContent = `Procreate用のテンプレートを${pages}枚書き出しました（1枚${perPage}コマ）：${out}　iPadに送ってProcreateで「読み込む」から開き、上のレイヤーに描いてPNGで書き出してください。`;
+    } catch (e) { msg.textContent = `書き出せませんでした：${e.message.replace(/^.*Error: /, '')}`; msg.classList.add('err'); }
+  };
+  $('.pc-import').onclick = () => $('.pc-file').click();
+  $('.pc-file').onchange = async (e) => {
+    const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
+    e.target.value = '';
+    const msg = $('.sb-msg');
+    msg.classList.remove('err');
+    msg.textContent = '読み込み中…';
+    const { perPage } = window.procreate.layout(plan.aspect);
+    let placed = 0;
+    try {
+      for (const [k, f] of files.entries()) {
+        const page = window.procreate.pageOf(f.name) ?? k;
+        const frames = await window.procreate.slicePage(plan, f);
+        for (const [i, dataUrl] of frames.entries()) {
+          if (!dataUrl) continue;
+          const at = page * perPage + i;
+          while (plan.cuts.length <= at) plan.cuts.push({ id: crypto.randomUUID(), dur: 3, note: '' });
+          plan.cuts[at].image = await window.hub.plans.saveImage(plan.id, dataUrl);
+          placed++;
+        }
+      }
+      renderCuts();
+      await persist();
+      msg.textContent = placed ? `${files.length}ページから${placed}コマをはめました。` : '描いてあるコマが見つかりませんでした。';
+    } catch (err) {
+      if (placed) { renderCuts(); await persist(); }
+      msg.textContent = `読み込めませんでした：${err.message.replace(/^.*Error: /, '')}`;
+      msg.classList.add('err');
+    }
+  };
 
   // ---- 絵コンテ
   const setImage = async (cut, blob) => {

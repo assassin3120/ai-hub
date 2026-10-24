@@ -1,3 +1,4 @@
+@import url("fonts/zen-kaku-gothic-new/font.css");
 /* 雑誌のような見た目：生成りの紙に赤い文字、細い線、両端そろえ、影なし */
 :root {
   --bg: #efe9df;
@@ -9,7 +10,7 @@
   --line: #ddb3aa;
   --line-strong: var(--red);
   --tint: #e8d9cc;
-  --font: "Avenir Next", "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --font: "Avenir Next", "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", sans-serif;
   color-scheme: light;
 }
 

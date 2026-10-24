@@ -1,6 +1,7 @@
 // 企画書・絵コンテの IPC。ハブ（main.js）と単独アプリ（main-plan.js）の両方で使う
 //   ask(sender, prompt, { web, images }) : AI に1回頼んで { output, error } を返す
 const { app, ipcMain, dialog, shell } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const plans = require('./plans');
@@ -45,6 +46,27 @@ function registerPlanIpc({ ask }) {
     if (kind === 'proposal') try { obsidian.logPlan(vault, plan, r.filePath); } catch (e) { console.error(e); }
     shell.showItemInFolder(r.filePath);
     return r.filePath;
+  });
+  // Procreate 用のテンプレート（PNG、ページごと）を保存する。最初のファイルのパスを返す
+  ipcMain.handle('plan:saveTemplates', async (_e, plan, images) => {
+    const { planDir, workDir } = settings.get();
+    const base = `Procreate絵コンテ_${(plan.title || '無題').replace(/[\\/:*?"<>|]/g, '')}`;
+    const r = await dialog.showSaveDialog({
+      defaultPath: path.join(planDir || workDir || app.getPath('documents'), `${base}_p1.png`),
+      filters: [{ name: 'PNG', extensions: ['png'] }],
+    });
+    if (r.canceled) return null;
+    const stem = r.filePath.replace(/(_p1)?\.png$/i, '');
+    const files = images.map((dataUrl, i) => {
+      const m = String(dataUrl).match(/^data:image\/png;base64,(.+)$/);
+      if (!m) throw new Error('テンプレートを作れませんでした');
+      const out = `${stem}_p${i + 1}.png`;
+      fs.writeFileSync(out, Buffer.from(m[1], 'base64'));
+      return out;
+    });
+    settings.set({ planDir: path.dirname(files[0]) });
+    shell.showItemInFolder(files[0]);
+    return files[0];
   });
   ipcMain.handle('shell:openUrl', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
 }
