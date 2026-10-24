@@ -8,6 +8,7 @@
     clean: { name: 'クリーン', bg: '#ffffff', ink: '#1d1d1f', sub: '#6e6e73', cover: '#ffffff', coverInk: '#1d1d1f', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
     bold: { name: 'ボールド', bg: '#ffffff', ink: '#111111', sub: '#666666', cover: '#111111', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
     warm: { name: 'ナチュラル', bg: '#faf6ef', ink: '#3a3229', sub: '#8a7d6b', cover: '#efe6d6', coverInk: '#3a3229', font: '"Hiragino Mincho ProN", "Noto Serif JP", serif' },
+    editorial: { name: 'エディトリアル', bg: '#efe9df', ink: '#b1261e', sub: '#c46a62', cover: '#efe9df', coverInk: '#b1261e', font: '"Avenir Next", "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", sans-serif' },
     film: { name: 'シネマ', bg: '#16171a', ink: '#ececec', sub: '#9a9aa0', cover: '#000000', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
   };
 
