@@ -46,6 +46,24 @@ function registerPlanIpc({ ask }) {
     shell.showItemInFolder(r.filePath);
     return r.filePath;
   });
+  // Procreate 用テンプレートなど、何枚かの画像をフォルダにまとめて書き出す
+  ipcMain.handle('plan:saveFiles', async (_e, files, folderName) => {
+    const { planDir, workDir } = settings.get();
+    const r = await dialog.showSaveDialog({
+      title: '書き出すフォルダの名前',
+      defaultPath: path.join(planDir || workDir || app.getPath('documents'), folderName),
+    });
+    if (r.canceled) return null;
+    const fs = require('fs');
+    fs.mkdirSync(r.filePath, { recursive: true });
+    for (const f of files) {
+      const m = String(f.dataUrl).match(/^data:image\/png;base64,(.+)$/);
+      if (m) fs.writeFileSync(path.join(r.filePath, path.basename(f.name)), Buffer.from(m[1], 'base64'));
+    }
+    settings.set({ planDir: path.dirname(r.filePath) });
+    shell.showItemInFolder(path.join(r.filePath, path.basename(files[0]?.name || '')));
+    return r.filePath;
+  });
   ipcMain.handle('shell:openUrl', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
 }
 

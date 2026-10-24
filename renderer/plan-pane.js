@@ -66,12 +66,15 @@ function planPane() {
           <span class="spacer"></span>
           <label>白紙<input type="number" class="blank-pages num" value="2" min="1" max="20">ページ</label>
           <button type="button" class="blank-pdf">テンプレートをPDF</button>
+          <button type="button" class="pc-template" title="iPad の Procreate で描くための PNG（2732×2048）を書き出します">Procreate用テンプレート</button>
+          <button type="button" class="pc-import" title="Procreate で描いて書き出した画像を読み込み、コマごとに切り分けてはめます">Procreateから読み込む</button>
+          <input type="file" class="pc-files" accept="image/*" multiple hidden>
           <button type="button" class="primary sb-pdf">絵コンテをPDF</button>
         </div>
         <div class="sb-msg"></div>
         <div class="sb-head"><span></span><span>No</span><span>尺</span><span>画面</span><span>ト書き</span><span></span></div>
         <ol class="cuts"></ol>
-        <p class="hint">描いた絵は画面の枠にドラッグ＆ドロップ（何枚かまとめて落とすと後ろのカットに順にはまります）、クリックで選ぶ、コピーして枠を選んで ⌘V、✏️ でその場で描くこともできます。左の ⋮⋮ をドラッグすると並べ替えられます。</p>
+        <p class="hint">描いた絵は画面の枠にドラッグ＆ドロップ（何枚かまとめて落とすと後ろのカットに順にはまります）、クリックで選ぶ、コピーして枠を選んで ⌘V、✏️ でその場で描くこともできます。左の ⋮⋮ をドラッグすると並べ替えられます。<br>Procreate で描くなら「Procreate用テンプレート」を書き出して iPad に送り、描いたら画像（PNG / JPEG）で書き出して「Procreateから読み込む」かここにドロップ。ページの順番は気にせず、まとめて入れれば各コマに自動ではまります。</p>
       </div>
     </div>
     <dialog class="sketch">
@@ -307,15 +310,47 @@ function planPane() {
   const setImage = async (cut, blob) => {
     cut.image = await window.hub.plans.saveImage(plan.id, await readAsDataUrl(blob));
   };
-  // 何枚か落としたら、そのカットから順にはめる（足りなければカットを足す）
+  // 何枚か落としたら、そのカットから順にはめる（足りなければカットを足す）。
+  // Procreate のテンプレートで描いた画像なら、印からページを読み取ってコマごとに切り分けてはめる
   const dropImages = async (index, files) => {
     const images = [...files].filter((f) => f.type.startsWith('image/'));
-    for (const [k, f] of images.entries()) {
+    const msg = $('.sb-msg');
+    let k = 0;
+    let filled = 0;
+    let pages = 0;
+    for (const f of images) {
+      const sheet = await window.procreate.split(f).catch(() => null);
+      if (sheet) {
+        pages++;
+        if (plan.aspect !== sheet.aspect) { plan.aspect = sheet.aspect; $('[data-f=aspect]').value = sheet.aspect; }
+        for (const [i, dataUrl] of sheet.crops.entries()) {
+          if (!dataUrl) continue;
+          const at = sheet.page * sheet.perPage + i;
+          while (plan.cuts.length <= at) plan.cuts.push({ id: crypto.randomUUID(), dur: 3, note: '' });
+          plan.cuts[at].image = await window.hub.plans.saveImage(plan.id, dataUrl);
+          filled++;
+        }
+        continue;
+      }
       if (!plan.cuts[index + k]) plan.cuts.push({ id: crypto.randomUUID(), dur: 3, note: '' });
       await setImage(plan.cuts[index + k], f);
+      k++;
     }
+    if (pages) { msg.classList.remove('err'); msg.textContent = `Procreate の ${pages}ページから ${filled}コマをはめました`; }
     if (images.length) { renderCuts(); changed(); }
   };
+
+  $('.pc-template').onclick = async () => {
+    const msg = $('.sb-msg');
+    msg.classList.remove('err');
+    try {
+      const files = await window.procreate.templates(plan, { blankPages: Number($('.blank-pages').value) || 1 });
+      const dir = await window.hub.plans.saveFiles(files, `Procreate_${(plan.title || '絵コンテ').replace(/[\\/:*?"<>|]/g, '')}`);
+      if (dir) msg.textContent = `${files.length}ページのテンプレートを書き出しました：${dir}（AirDrop で iPad に送り、Procreate の「読み込む」で開いてください）`;
+    } catch (e) { msg.textContent = `書き出せませんでした：${e.message.replace(/^.*Error: /, '')}`; msg.classList.add('err'); }
+  };
+  $('.pc-import').onclick = () => $('.pc-files').click();
+  $('.pc-files').onchange = async () => { await dropImages(plan.cuts.length, $('.pc-files').files); $('.pc-files').value = ''; };
 
   let dragFrom = null;
   const renderCuts = () => {

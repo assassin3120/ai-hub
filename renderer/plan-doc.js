@@ -5,20 +5,20 @@
 
   // 企画書のデザイン。AI が内容に合わせて選び、画面からも選び直せる。
   const THEMES = {
-    clean: { name: 'クリーン', bg: '#ffffff', ink: '#1d1d1f', sub: '#6e6e73', cover: '#ffffff', coverInk: '#1d1d1f', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
-    bold: { name: 'ボールド', bg: '#ffffff', ink: '#111111', sub: '#666666', cover: '#111111', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
+    clean: { name: 'クリーン', bg: '#ffffff', ink: '#1d1d1f', sub: '#6e6e73', cover: '#ffffff', coverInk: '#1d1d1f', font: '"A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif' },
+    bold: { name: 'ボールド', bg: '#ffffff', ink: '#111111', sub: '#666666', cover: '#111111', coverInk: '#ffffff', font: '"A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif' },
     warm: { name: 'ナチュラル', bg: '#faf6ef', ink: '#3a3229', sub: '#8a7d6b', cover: '#efe6d6', coverInk: '#3a3229', font: '"Hiragino Mincho ProN", "Noto Serif JP", serif' },
-    film: { name: 'シネマ', bg: '#16171a', ink: '#ececec', sub: '#9a9aa0', cover: '#000000', coverInk: '#ffffff', font: '"Hiragino Sans", "Noto Sans JP", sans-serif' },
-    editorial: { name: 'エディトリアル', bg: '#ece6dc', ink: '#b2161e', sub: '#b2161ea0', cover: '#ece6dc', coverInk: '#b2161e', font: '"Manrope", "Avenir Next", "Hiragino Sans", "Noto Sans JP", sans-serif' },
+    film: { name: 'シネマ', bg: '#16171a', ink: '#ececec', sub: '#9a9aa0', cover: '#000000', coverInk: '#ffffff', font: '"A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif' },
+    editorial: { name: 'エディトリアル', bg: '#ece6dc', ink: '#b2161e', sub: '#b2161ea0', cover: '#ece6dc', coverInk: '#b2161e', font: '"Manrope", "Avenir Next", "A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif' },
   };
 
   // 送った雰囲気から AI が作るトンマナ（theme: 'custom'）で使える書体と飾り
   const FONTS = {
-    sans: '"Hiragino Sans", "Noto Sans JP", sans-serif',
+    sans: '"A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif',
     serif: '"Hiragino Mincho ProN", "Noto Serif JP", serif',
-    mono: '"SF Mono", Menlo, "Hiragino Sans", "Noto Sans JP", monospace',
+    mono: '"SF Mono", Menlo, "A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", monospace',
     rounded: '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Hiragino Sans", sans-serif',
-    condensed: '"Avenir Next Condensed", "Arial Narrow", "Hiragino Sans", "Noto Sans JP", sans-serif',
+    condensed: '"Avenir Next Condensed", "Arial Narrow", "A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif',
   };
   const BORDERS = { none: 'none', thin: '.5mm solid var(--ink)', thick: '1.4mm solid var(--ink)' };
   const SHADOWS = { none: 'none', soft: '0 2mm 6mm rgba(0,0,0,.18)', hard: '2.6mm 2.6mm 0 var(--ink)' };
@@ -187,7 +187,7 @@
 .pp-refs li { break-inside: avoid; margin-bottom: 4mm; }
 .pp-refs .src { color: var(--sub); margin-left: 2mm; font-size: 8.5pt; }
 .pp-refs .url { color: var(--sub); font-size: 8pt; word-break: break-all; }
-.storyboard { font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; color: #222; }
+.storyboard { font-family: "A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", sans-serif; color: #222; }
 .sb-page { box-sizing: border-box; width: 210mm; height: 297mm; padding: 14mm 12mm 10mm; background: #fff; page-break-after: always; break-after: page; overflow: hidden; }
 .sb-page header { display: flex; gap: 6mm; align-items: baseline; font-size: 9pt; color: #666; margin-bottom: 3mm; }
 .sb-page header b { font-size: 12pt; color: #222; margin-right: auto; }
