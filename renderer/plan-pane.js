@@ -69,12 +69,17 @@ function planPane() {
           <button type="button" class="pc-template" title="iPad の Procreate で描くための PNG（2732×2048）を書き出します">Procreate用テンプレート</button>
           <button type="button" class="pc-import" title="Procreate で描いて書き出した画像を読み込み、コマごとに切り分けてはめます">Procreateから読み込む</button>
           <input type="file" class="pc-files" accept="image/*" multiple hidden>
+          <label>書き出し<select class="sb-kind">
+            <option value="storyboard">表（No・尺・画面・ト書き）</option>
+            <option value="contact">コンタクトシート</option>
+            <option value="cascade">CMコンテ（ずらし組み・吹き出し）</option>
+          </select></label>
           <button type="button" class="primary sb-pdf">絵コンテをPDF</button>
         </div>
         <div class="sb-msg"></div>
-        <div class="sb-head"><span></span><span>No</span><span>尺</span><span>画面</span><span>ト書き</span><span></span></div>
+        <div class="sb-head"><span></span><span>No</span><span>尺</span><span>画面</span><span>ト書き・セリフ</span><span></span></div>
         <ol class="cuts"></ol>
-        <p class="hint">描いた絵は画面の枠にドラッグ＆ドロップ（何枚かまとめて落とすと後ろのカットに順にはまります）、クリックで選ぶ、コピーして枠を選んで ⌘V、✏️ でその場で描くこともできます。左の ⋮⋮ をドラッグすると並べ替えられます。<br>Procreate で描くなら「Procreate用テンプレート」を書き出して iPad に送り、描いたら画像（PNG / JPEG）で書き出して「Procreateから読み込む」かここにドロップ。ページの順番は気にせず、まとめて入れれば各コマに自動ではまります。</p>
+        <p class="hint">描いた絵は画面の枠にドラッグ＆ドロップ（何枚かまとめて落とすと後ろのカットに順にはまります）、クリックで選ぶ、コピーして枠を選んで ⌘V、✏️ でその場で描くこともできます。カットは行のどこでも（絵の上でも）つかんでドラッグすると並べ替えられます。<br>Procreate で描くなら「Procreate用テンプレート」を書き出して iPad に送り、描いたら画像（PNG / JPEG）で書き出して「Procreateから読み込む」かここにドロップ。ページの順番は気にせず、まとめて入れれば各コマに自動ではまります。</p>
       </div>
     </div>
     <dialog class="sketch">
@@ -303,7 +308,7 @@ function planPane() {
     } catch (e) { msg.textContent = `書き出せませんでした：${e.message.replace(/^.*Error: /, '')}`; msg.classList.add('err'); }
   };
   $('.pdf').onclick = () => exportPdf('proposal', { withStoryboard: $('.with-sb').checked });
-  $('.sb-pdf').onclick = () => exportPdf('storyboard');
+  $('.sb-pdf').onclick = () => exportPdf($('.sb-kind').value);
   $('.blank-pdf').onclick = () => exportPdf('blank', { pages: Number($('.blank-pages').value) || 2 });
 
   // ---- 絵コンテ
@@ -363,18 +368,38 @@ function planPane() {
       const li = el('li', 'cut');
       const s = start;
       start += Number(cut.dur) || 0;
+      // 行のどこをつかんでもドラッグで並べ替えられる（文字の入力欄とボタンの上は除く）
       const grip = el('span', 'grip', '⋮⋮');
       grip.title = 'ドラッグで並べ替え';
-      grip.draggable = true;
-      grip.ondragstart = (e) => { dragFrom = i; e.dataTransfer.setData('text/x-cut', String(i)); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(li, 20, 20); li.classList.add('dragging'); };
-      grip.ondragend = () => { li.classList.remove('dragging'); dragFrom = null; };
-      li.ondragover = (e) => { if (dragFrom !== null) { e.preventDefault(); li.classList.add('over'); } };
-      li.ondragleave = () => li.classList.remove('over');
+      li.onpointerdown = (e) => { li.draggable = !e.target.closest('input, textarea, select, button'); };
+      li.ondragstart = (e) => {
+        if (!li.draggable) return;
+        dragFrom = i;
+        e.dataTransfer.setData('text/x-cut', String(i));
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setDragImage(li, 40, 30);
+        requestAnimationFrame(() => li.classList.add('dragging'));
+      };
+      li.ondragend = () => { li.draggable = false; dragFrom = null; ol.querySelectorAll('.cut').forEach((x) => x.classList.remove('dragging', 'drop-before', 'drop-after')); };
+      // 行の上半分なら前、下半分なら後ろに入れる
+      const after = (e) => { const r = li.getBoundingClientRect(); return e.clientY > r.top + r.height / 2; };
+      li.ondragover = (e) => {
+        if (dragFrom === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        ol.querySelectorAll('.cut').forEach((x) => { if (x !== li) x.classList.remove('drop-before', 'drop-after'); });
+        li.classList.toggle('drop-after', after(e));
+        li.classList.toggle('drop-before', !after(e));
+      };
+      li.ondragleave = (e) => { if (!li.contains(e.relatedTarget)) li.classList.remove('drop-before', 'drop-after'); };
       li.ondrop = (e) => {
         if (dragFrom === null) return;
         e.preventDefault();
+        e.stopPropagation();
+        let to = i + (after(e) ? 1 : 0);
+        if (dragFrom < to) to--;
         const [moved] = plan.cuts.splice(dragFrom, 1);
-        plan.cuts.splice(i, 0, moved);
+        plan.cuts.splice(to, 0, moved);
         dragFrom = null;
         renderCuts(); changed();
       };
@@ -406,10 +431,17 @@ function planPane() {
       if (cut.image) fbtn('×', '絵を外す', () => { delete cut.image; renderCuts(); changed(); });
       frame.append(ft, picker);
 
+      const texts = el('div', 'texts');
       const note = el('textarea', 'note');
       note.value = cut.note ?? '';
-      note.placeholder = 'ト書き（画面・カメラ・セリフ・音）';
+      note.placeholder = 'ト書き（画面・カメラ・音）';
       note.oninput = () => { cut.note = note.value; changed(); };
+      const line = el('textarea', 'line');
+      line.value = cut.line ?? '';
+      line.rows = 2;
+      line.placeholder = 'セリフ・NA（例：イチローさん：ICTって何？）';
+      line.oninput = () => { cut.line = line.value; changed(); };
+      texts.append(note, line);
 
       const tools = el('div', 'cut-tools');
       const btn = (label, title, fn) => { const x = el('button', null, label); x.type = 'button'; x.title = title; x.onclick = fn; tools.append(x); };
@@ -418,7 +450,7 @@ function planPane() {
       btn('⧉', '複製', () => { plan.cuts.splice(i + 1, 0, { ...structuredClone(cut), id: crypto.randomUUID() }); renderCuts(); changed(); });
       btn('×', 'カットを消す', () => { plan.cuts.splice(i, 1); renderCuts(); changed(); });
 
-      li.append(grip, el('span', 'no', String(i + 1)), dur, frame, note, tools);
+      li.append(grip, el('span', 'no', String(i + 1)), dur, frame, texts, tools);
       ol.append(li);
     });
     updateTimes();

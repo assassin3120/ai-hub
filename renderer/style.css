@@ -252,7 +252,13 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--red); }
 .cut { background: transparent; border-bottom: var(--hair); padding: 16px 0; }
 .cut:hover { background: var(--wash); }
 .cut.dragging { opacity: .4; }
-.cut.over { box-shadow: 0 -2px 0 var(--red); }
+.cut { position: relative; cursor: grab; }
+.cut.dragging { opacity: .35; }
+.cut.drop-before::before, .cut.drop-after::after { content: ''; position: absolute; left: 0; right: 0; height: 3px; background: var(--red); }
+.cut.drop-before::before { top: -2px; }
+.cut.drop-after::after { bottom: -2px; }
+.cut .texts { display: grid; grid-template-rows: 1fr auto; gap: 6px; height: 100%; }
+.cut .line { min-height: 46px; resize: vertical; line-height: 1.6; font-size: 14px; border-bottom: 0 !important; border-left: 2px solid var(--rule) !important; padding-left: 8px !important; }
 .cut .grip { cursor: grab; user-select: none; padding-top: 4px; letter-spacing: -3px; color: var(--faint); }
 .cut .no { font-weight: 600; font-size: 22px; line-height: 1; text-align: center; }
 .cut .dur { display: grid; grid-template-columns: 1fr auto; gap: 2px 4px; align-items: center; font-size: 13px; }
@@ -265,7 +271,7 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--red); }
 .cut .frame-tools { position: absolute; right: 6px; top: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
 .cut .frame:hover .frame-tools, .cut .frame:focus-within .frame-tools { opacity: 1; }
 .cut .frame-tools button { width: 28px; height: 28px; padding: 0; font-size: 12px; border: 0; background: var(--paper); }
-.cut .note { height: 100%; min-height: 90px; resize: vertical; line-height: 1.7; font-size: 15px; border-bottom: 0 !important; text-align: justify; }
+.cut .note { min-height: 70px; resize: vertical; line-height: 1.7; font-size: 15px; border-bottom: 0 !important; text-align: justify; }
 .cut .cut-tools { display: flex; flex-wrap: wrap; gap: 2px; }
 .plan .hint { font-size: 12px; color: var(--sub); line-height: 1.7; text-align: justify; }
 .sketch { border: 0; border-radius: 0; padding: 18px; width: min(92vw, 1100px); background: var(--paper); color: var(--red); box-shadow: 0 30px 80px rgba(60, 20, 20, .3); }

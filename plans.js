@@ -103,9 +103,9 @@ ${outline(plan)}`;
   },
 
   cuts: (plan, seconds) => `【カット割り】次の企画から、映像の絵コンテのカット割りを作ってください。
-${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・セリフやテロップ・音）を書く。
+${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・テロップ・音）と、セリフやナレーション（line。話す人がいれば「名前：セリフ」、なければ空）を書く。
 ${JSON_ONLY}
-形式: {"cuts":[{"dur":3,"note":"ト書き"}]}
+形式: {"cuts":[{"dur":3,"note":"ト書き","line":"名前：セリフ"}]}
 
 企画書:
 ${outline(plan)}
@@ -126,7 +126,7 @@ const parsers = {
   polish: (j) => ({ title: str(j.title), subtitle: str(j.subtitle), tagline: str(j.tagline), sections: sections(j) }),
   design: (j) => ({ theme: THEMES[j.theme] ? j.theme : 'clean', accent: /^#[0-9a-f]{6}$/i.test(j.accent) ? j.accent : '#e8453c' }),
   tone: (j) => { const t = normalizeTheme(j); return { theme: 'custom', customTheme: t, accent: t.accent }; },
-  cuts: (j) => ({ cuts: (Array.isArray(j.cuts) ? j.cuts : []).map((c) => ({ id: crypto.randomUUID(), dur: Number(c.dur) || 0, note: str(c.note) })) }),
+  cuts: (j) => ({ cuts: (Array.isArray(j.cuts) ? j.cuts : []).map((c) => ({ id: crypto.randomUUID(), dur: Number(c.dur) || 0, note: str(c.note), line: str(c.line) })) }),
 };
 
 function parseStep(step, text) {

@@ -12,9 +12,11 @@ const { htmlToPdf } = require('./pdf');
 function planPdf(plan, kind, opts, outPath) {
   const imageUrl = (p) => pathToFileURL(p).href;
   const body = kind === 'proposal' ? planDoc.proposalHtml(plan, { ...opts, imageUrl })
-    : planDoc.storyboardHtml(plan, { blank: kind === 'blank', pages: opts.pages, imageUrl });
+    : kind === 'contact' ? planDoc.contactSheetHtml(plan, { imageUrl })
+      : kind === 'cascade' ? planDoc.cascadeHtml(plan, { imageUrl })
+        : planDoc.storyboardHtml(plan, { blank: kind === 'blank', pages: opts.pages, imageUrl });
   // 企画書は横、絵コンテは縦。同じ PDF の中でページごとに向きを変える
-  const css = `@page land{size:A4 landscape;margin:0}@page port{size:A4 portrait;margin:0}.pp-page{page:land}.sb-page{page:port}body{margin:0}${planDoc.PLAN_CSS}`;
+  const css = `@page land{size:A4 landscape;margin:0}@page port{size:A4 portrait;margin:0}.pp-page{page:land}.cs-page{page:land}.sb-page{page:port}.cc-page{page:port}body{margin:0}${planDoc.PLAN_CSS}`;
   return htmlToPdf(`<!doctype html><meta charset="utf-8"><style>${css}</style>${body}`, outPath, { preferCSSPageSize: true });
 }
 
@@ -31,10 +33,10 @@ function registerPlanIpc({ ask }) {
     if (!out) throw new Error(res.error?.trim() || 'AIの答えを読み取れませんでした');
     return out;
   });
-  // kind: proposal（企画書。withStoryboard で絵コンテも付ける）/ storyboard / blank（手描き用の空テンプレート）
+  // kind: proposal（企画書。withStoryboard で絵コンテも付ける）/ storyboard（表）/ contact（コンタクトシート）/ cascade（CMコンテ）/ blank（手描き用の空テンプレート）
   ipcMain.handle('plan:pdf', async (_e, plan, kind, opts = {}) => {
     const { planDir, workDir, vault, issuer } = settings.get();
-    const label = { proposal: '企画書', storyboard: '絵コンテ', blank: '絵コンテテンプレート' }[kind];
+    const label = { proposal: '企画書', storyboard: '絵コンテ', contact: 'コンタクトシート', cascade: 'CMコンテ', blank: '絵コンテテンプレート' }[kind];
     const r = await dialog.showSaveDialog({
       defaultPath: path.join(planDir || workDir || app.getPath('documents'), `${label}_${(plan.title || '無題').replace(/[\\/:*?"<>|]/g, '')}.pdf`),
       filters: [{ name: 'PDF', extensions: ['pdf'] }],

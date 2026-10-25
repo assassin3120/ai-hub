@@ -143,7 +143,7 @@
           <td class="sb-no">${no}</td>
           <td class="sb-dur">${blank ? '' : `<b>${esc(c.dur ?? '')}${c.dur !== undefined && c.dur !== '' ? '<small>秒</small>' : ''}</b><span>${tc(s)}–${tc(start)}</span>`}</td>
           <td class="sb-pic"><div class="sb-frame" style="width:${frameW}mm;height:${frameW / ratio}mm">${img}</div></td>
-          <td class="sb-note">${blank ? '' : esc(c.note).replace(/\n/g, '<br>')}</td>
+          <td class="sb-note">${blank ? '' : esc(c.note).replace(/\n/g, '<br>')}${!blank && c.line ? `<div class="sb-line">${esc(c.line).replace(/\n/g, '<br>')}</div>` : ''}</td>
         </tr>`;
       }).join('');
       pages.push(`<section class="sb-page">
@@ -153,6 +153,83 @@
       </section>`);
     }
     return `<div class="storyboard">${pages.join('')}</div>`;
+  }
+
+  // セリフ「名前：セリフ」を話す人とセリフに分ける
+  const speech = (line) => {
+    const m = String(line || '').trim().match(/^([^：:\n]{1,14})[：:]\s*([\s\S]+)$/);
+    return m ? { who: m[1].trim(), text: m[2].trim() } : { who: '', text: String(line || '').trim() };
+  };
+  const nl = (t) => esc(t).replace(/\n/g, '<br>');
+  const circled = (n) => (n >= 1 && n <= 20 ? String.fromCodePoint(0x2460 + n - 1) : n >= 21 && n <= 35 ? String.fromCodePoint(0x3251 + n - 21) : n >= 36 && n <= 50 ? String.fromCodePoint(0x32B1 + n - 36) : `(${n})`);
+
+  // コンタクトシート：A4 横に、コマを格子状に並べる（No・尺・タイムコード・ト書き1〜2行）
+  function contactSheetHtml(plan, { imageUrl = (p) => p } = {}) {
+    const aspect = plan.aspect || '16:9';
+    const ratio = ASPECTS[aspect] ?? 16 / 9;
+    const cols = ratio >= 2 ? 4 : ratio >= 1.3 ? 4 : ratio >= 1 ? 5 : 7;
+    const gap = 5;
+    const cellW = (273 - gap * (cols - 1)) / cols;
+    const frameH = cellW / ratio;
+    const cellH = frameH + 13;
+    const rows = Math.max(1, Math.floor((176 + gap) / (cellH + gap)));
+    const n = cols * rows;
+    const cuts = plan.cuts || [];
+    const count = Math.max(1, Math.ceil(cuts.length / n));
+    let start = 0;
+    const pages = [];
+    for (let p = 0; p < count; p++) {
+      const cells = cuts.slice(p * n, p * n + n).map((c, i) => {
+        const s = start;
+        start += Number(c.dur) || 0;
+        return `<figure class="cs-cell">
+          <div class="cs-frame" style="height:${frameH}mm">${c.image ? `<img src="${esc(imageUrl(c.image))}">` : ''}</div>
+          <figcaption><b>${p * n + i + 1}</b><span>${esc(c.dur ?? '')}秒</span><span class="tc">${tc(s)}–${tc(start)}</span></figcaption>
+          <p>${esc(c.note || speech(c.line).text)}</p>
+        </figure>`;
+      }).join('');
+      pages.push(`<section class="cs-page">
+        <header><b>${esc(plan.title || '絵コンテ')}</b><span>${cuts.length}カット・尺 ${tc(totalDur(cuts))}</span><span>${aspect}</span><span>${p + 1} / ${count}</span></header>
+        <div class="cs-grid" style="grid-template-columns:repeat(${cols}, 1fr);gap:${gap}mm">${cells}</div>
+      </section>`);
+    }
+    return `<div class="storyboard">${pages.join('')}</div>`;
+  }
+
+  // CMコンテ：A4 縦。コマを階段状にずらして縦に並べ、左にト書き、右にセリフの吹き出し
+  function cascadeHtml(plan, { imageUrl = (p) => p } = {}) {
+    const aspect = plan.aspect || '16:9';
+    const ratio = ASPECTS[aspect] ?? 16 / 9;
+    const fw = Math.min(64, 42 * ratio);
+    const fh = fw / ratio;
+    const band = 82; // コマが動く幅（mm）
+    // 参考の CM コンテのように、コマどうしが少し重なるくらいに詰めて並べる
+    const step = fh * 0.86 + 2;
+    const per = Math.max(1, Math.floor(262 / step));
+    const shift = [0, 0.5, 1, 0.5];
+    const cuts = plan.cuts || [];
+    const count = Math.max(1, Math.ceil(cuts.length / per));
+    let start = 0;
+    const pages = [];
+    for (let p = 0; p < count; p++) {
+      const rows = cuts.slice(p * per, p * per + per).map((c, i) => {
+        const no = p * per + i + 1;
+        const s = start;
+        start += Number(c.dur) || 0;
+        const x = shift[(no - 1) % shift.length] * (band - fw);
+        const sp = speech(c.line);
+        return `<div class="cc-row" style="height:${step}mm">
+          <div class="cc-note"><span class="cc-no">${circled(no)}</span><div>${nl(c.note)}<small>${esc(c.dur ?? '')}秒　${tc(s)}–${tc(start)}</small></div></div>
+          <div class="cc-band"><div class="cc-frame" style="left:${x}mm;width:${fw}mm;height:${fh}mm"><i>${no}</i>${c.image ? `<img src="${esc(imageUrl(c.image))}">` : ''}</div></div>
+          <div class="cc-talk">${sp.text ? `${sp.who ? `<span class="cc-who">${esc(sp.who)}</span>` : ''}<div class="cc-balloon">${nl(sp.text)}</div>` : ''}</div>
+        </div>`;
+      }).join('');
+      pages.push(`<section class="cc-page">
+        <header><b>${esc(plan.title || '絵コンテ')}</b><span>${aspect}・${cuts.length}カット・尺 ${tc(totalDur(cuts))}</span><span>${p + 1} / ${count}</span></header>
+        ${rows}
+      </section>`);
+    }
+    return `<div class="storyboard cascade">${pages.join('')}</div>`;
   }
 
   const PLAN_CSS = `
@@ -202,9 +279,35 @@
 .sb-frame { box-sizing: border-box; border: .3mm solid #333; background: #fff; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .sb-frame img { width: 100%; height: 100%; object-fit: cover; }
 .sb-note { line-height: 1.6; white-space: normal; }
+.sb-line { margin-top: 1.5mm; padding-left: 2mm; border-left: .5mm solid #bbb; color: #444; }
+.cs-page { box-sizing: border-box; width: 297mm; height: 210mm; padding: 12mm 12mm 10mm; background: #fff; page-break-after: always; break-after: page; overflow: hidden; }
+.cs-page header, .cc-page header { display: flex; gap: 6mm; align-items: baseline; font-size: 9pt; color: #666; margin-bottom: 5mm; padding-bottom: 2mm; border-bottom: .3mm solid #222; }
+.cs-page header b, .cc-page header b { font-size: 12pt; color: #222; margin-right: auto; }
+.cs-grid { display: grid; align-content: start; }
+.cs-cell { margin: 0; min-width: 0; }
+.cs-frame { border: .3mm solid #333; background: #fff; overflow: hidden; }
+.cs-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cs-cell figcaption { display: flex; gap: 2mm; align-items: baseline; margin-top: 1.2mm; font-size: 8pt; color: #555; }
+.cs-cell figcaption b { font-size: 10pt; color: #222; }
+.cs-cell figcaption .tc { margin-left: auto; color: #999; font-size: 7pt; }
+.cs-cell p { margin: .6mm 0 0; font-size: 7pt; line-height: 1.4; color: #444; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cc-page { box-sizing: border-box; width: 210mm; height: 297mm; padding: 12mm 12mm 8mm; background: #fff; page-break-after: always; break-after: page; overflow: hidden; }
+.cc-row { display: grid; grid-template-columns: 50mm 82mm 1fr; gap: 0 3mm; align-items: start; }
+.cc-note { display: flex; gap: 1.5mm; font-size: 8pt; line-height: 1.45; color: #222; padding-top: 1mm; overflow: hidden; max-height: 100%; }
+.cc-note .cc-no { font-size: 12pt; line-height: 1; }
+.cc-note small { display: block; margin-top: .8mm; font-size: 6.5pt; color: #999; }
+.cc-band { position: relative; height: 100%; overflow: visible; }
+.cc-frame { position: absolute; top: 0; box-sizing: border-box; border: .35mm solid #222; background: #fff; overflow: hidden; box-shadow: 0 0 0 .8mm #fff; }
+.cc-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cc-frame i { position: absolute; top: .8mm; left: .8mm; z-index: 1; font-style: normal; font-size: 6.5pt; line-height: 1; padding: .5mm 1mm; background: rgba(255,255,255,.85); border: .2mm solid #222; border-radius: 50%; }
+.cc-talk { padding-top: 1mm; font-size: 8.5pt; line-height: 1.45; min-width: 0; }
+.cc-who { display: block; font-size: 6.5pt; color: #777; margin: 0 0 .8mm 3mm; }
+.cc-balloon { position: relative; display: inline-block; max-width: 100%; box-sizing: border-box; padding: 1.8mm 3mm; border: .3mm solid #222; border-radius: 2mm; background: #fff; color: #222; }
+.cc-balloon::before { content: ''; position: absolute; left: -2.2mm; top: 2.4mm; border: 1.1mm solid transparent; border-right: 2.2mm solid #222; border-left: 0; }
+.cc-balloon::after { content: ''; position: absolute; left: -1.6mm; top: 2.6mm; border: .9mm solid transparent; border-right: 1.8mm solid #fff; border-left: 0; }
 `;
 
-  const api = { THEMES, FONTS, normalizeTheme, themeOf, ASPECTS, tc, totalDur, perPage, proposalHtml, storyboardHtml, PLAN_CSS };
+  const api = { THEMES, FONTS, normalizeTheme, themeOf, ASPECTS, tc, totalDur, perPage, proposalHtml, storyboardHtml, contactSheetHtml, cascadeHtml, PLAN_CSS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.planDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);
