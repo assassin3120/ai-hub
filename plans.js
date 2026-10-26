@@ -47,6 +47,14 @@ const outline = (plan) => JSON.stringify({ title: plan.title, subtitle: plan.sub
 const refsText = (plan) => (plan.refs || []).map((r) => `- ${r.title} ${r.url || ''} ${r.note || ''}`).join('\n');
 const JSON_ONLY = '出力はJSONだけ。説明文やコードブロックは付けない。';
 
+// 篇が2つ以上ある企画なら、どの篇のカット割りかを伝える
+const epNote = (plan) => {
+  const eps = plan.episodes || [];
+  if (eps.length < 2) return '';
+  const cur = eps.find((e) => e.id === plan.ep) ?? eps[0];
+  return `この企画には ${eps.map((e) => `「${e.name}」`).join('・')} があり、作るのは「${cur.name}」のカット割り。この篇の内容だけにして、ほかの篇と重ならないようにする。\n`;
+};
+
 // 工程ごとのプロンプト。先頭の【】は工程名（ログで見分けやすいように）
 const prompts = {
   refs: (plan) => `【リファレンス集め】次の企画の参考になるリファレンスを6〜10件集めてください。
@@ -103,7 +111,7 @@ ${outline(plan)}`;
   },
 
   cuts: (plan, seconds) => `【カット割り】次の企画から、映像の絵コンテのカット割りを作ってください。
-${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・テロップ・音）と、セリフやナレーション（line。話す人がいれば「名前：セリフ」、なければ空）を書く。
+${epNote(plan)}${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・テロップ・音）と、セリフやナレーション（line。話す人がいれば「名前：セリフ」、なければ空）を書く。
 ${JSON_ONLY}
 形式: {"cuts":[{"dur":3,"note":"ト書き","line":"名前：セリフ"}]}
 

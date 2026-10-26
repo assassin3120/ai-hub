@@ -57,6 +57,14 @@ function planPane() {
         <div class="pl-preview"><div class="paper"></div></div>
       </div>
       <div class="pl-tab pl-board">
+        <div class="eps">
+          <div class="ep-tabs"></div>
+          <button type="button" class="ep-add" title="新しい篇を足す">＋ 篇</button>
+          <span class="spacer"></span>
+          <label>篇の名前<input class="ep-name" placeholder="例：A篇・夏篇・15秒版"></label>
+          <button type="button" class="ep-dup" title="この篇をまるごと複製">複製</button>
+          <button type="button" class="ep-del" title="この篇を消す">篇を消す</button>
+        </div>
         <div class="sb-tools">
           <label>画面比<select data-f="aspect">${Object.keys(ASPECTS).map((k) => `<option>${k}</option>`).join('')}</select></label>
           <label>全体の尺<input type="number" data-f="seconds" min="0" step="1" class="num">秒</label>
@@ -74,6 +82,7 @@ function planPane() {
             <option value="contact">コンタクトシート</option>
             <option value="cascade">CMコンテ（ずらし組み・吹き出し）</option>
           </select></label>
+          <label class="check ep-all-wrap"><input type="checkbox" class="ep-all">全篇まとめて</label>
           <button type="button" class="primary sb-pdf">絵コンテをPDF</button>
         </div>
         <div class="sb-msg"></div>
@@ -99,9 +108,25 @@ function planPane() {
 
   const blank = () => ({ id: crypto.randomUUID(), date: today(), title: '', memo: '', refs: [], subtitle: '', tagline: '', sections: [], theme: 'clean', accent: '#e8453c', tone: { images: [], words: '' }, aspect: '16:9', seconds: 30, cuts: [] });
 
+  // ---- 篇（A篇・B篇…）。篇ごとに画面比・尺・カットを持つ。
+  // 開いている篇の値は plan.aspect / seconds / cuts にも置いて、ほかのコードはそのまま使う
+  const EP_FIELDS = ['aspect', 'seconds', 'cuts'];
+  const newEp = (name, from = {}) => ({ id: crypto.randomUUID(), name, aspect: from.aspect || '16:9', seconds: from.seconds ?? 30, cuts: from.cuts || [] });
+  const curEp = () => plan.episodes.find((e) => e.id === plan.ep) ?? plan.episodes[0];
+  const syncEp = () => { const ep = curEp(); for (const k of EP_FIELDS) ep[k] = plan[k]; };
+  const loadEp = (id) => { plan.ep = id; const ep = curEp(); plan.ep = ep.id; for (const k of EP_FIELDS) plan[k] = ep[k]; };
+  // 篇がない（前に作った）企画は、今のカットを「本編」にする
+  const withEps = (p) => {
+    plan = p;
+    if (!Array.isArray(plan.episodes) || !plan.episodes.length) plan.episodes = [newEp('本編', plan)];
+    loadEp(plan.ep);
+    return plan;
+  };
+
   // 変更はすぐ自動で保存する
   const persist = async () => {
     clearTimeout(saveTimer);
+    syncEp();
     all = await window.hub.plans.save(plan);
     renderList();
     status.textContent = '保存しました';
@@ -120,8 +145,10 @@ function planPane() {
       const li = el('li');
       li.dataset.id = x.id;
       li.classList.toggle('active', x.id === plan?.id);
-      li.append(el('b', null, x.title || '無題の企画'), el('span', null, `${(x.sections || []).length}章・${(x.cuts || []).length}カット`));
-      li.onclick = async () => { await flush(); plan = structuredClone(x); $('.steps').textContent = ''; fill(); };
+      const eps = x.episodes?.length ? x.episodes : [{ cuts: x.cuts || [] }];
+      const cutCount = eps.reduce((n, e) => n + (e.cuts || []).length, 0);
+      li.append(el('b', null, x.title || '無題の企画'), el('span', null, `${(x.sections || []).length}章・${eps.length > 1 ? `${eps.length}篇・` : ''}${cutCount}カット`));
+      li.onclick = async () => { await flush(); withEps(structuredClone(x)); $('.steps').textContent = ''; fill(); };
       ul.append(li);
     }
   };
@@ -235,6 +262,7 @@ function planPane() {
   };
 
   const fill = () => {
+    renderEps();
     renderTone();
     for (const input of pane.querySelectorAll('[data-f]')) input.value = plan[input.dataset.f] ?? '';
     renderRefs();
@@ -300,6 +328,7 @@ function planPane() {
   };
 
   const exportPdf = async (kind, opts) => {
+    syncEp();
     await flush();
     const msg = kind === 'proposal' ? status : $('.sb-msg');
     try {
@@ -308,7 +337,7 @@ function planPane() {
     } catch (e) { msg.textContent = `書き出せませんでした：${e.message.replace(/^.*Error: /, '')}`; msg.classList.add('err'); }
   };
   $('.pdf').onclick = () => exportPdf('proposal', { withStoryboard: $('.with-sb').checked });
-  $('.sb-pdf').onclick = () => exportPdf($('.sb-kind').value);
+  $('.sb-pdf').onclick = () => exportPdf($('.sb-kind').value, { all: $('.ep-all').checked });
   $('.blank-pdf').onclick = () => exportPdf('blank', { pages: Number($('.blank-pages').value) || 2 });
 
   // ---- 絵コンテ
@@ -349,7 +378,7 @@ function planPane() {
     const msg = $('.sb-msg');
     msg.classList.remove('err');
     try {
-      const files = await window.procreate.templates(plan, { blankPages: Number($('.blank-pages').value) || 1 });
+      const files = await window.procreate.templates({ ...plan, title: epTitle() }, { blankPages: Number($('.blank-pages').value) || 1 });
       const dir = await window.hub.plans.saveFiles(files, `Procreate_${(plan.title || '絵コンテ').replace(/[\\/:*?"<>|]/g, '')}`);
       if (dir) msg.textContent = `${files.length}ページのテンプレートを書き出しました：${dir}（AirDrop で iPad に送り、Procreate の「読み込む」で開いてください）`;
     } catch (e) { msg.textContent = `書き出せませんでした：${e.message.replace(/^.*Error: /, '')}`; msg.classList.add('err'); }
@@ -546,6 +575,49 @@ function planPane() {
     changed();
   };
 
+  // ---- 篇の切り替え・追加・複製・削除
+  const epTitle = () => (plan.episodes.length > 1 ? `${plan.title || '無題の企画'}　${curEp().name}` : plan.title);
+  const renderEps = () => {
+    const box = $('.ep-tabs');
+    box.textContent = '';
+    for (const ep of plan.episodes) {
+      const b = el('button', ep.id === plan.ep ? 'on' : null);
+      b.type = 'button';
+      b.append(el('b', null, ep.name || '無題の篇'), el('small', null, `${(ep.id === plan.ep ? plan.cuts : ep.cuts).length}`));
+      b.onclick = () => { if (ep.id === plan.ep) return; syncEp(); loadEp(ep.id); fill(); changed(); };
+      box.append(b);
+    }
+    $('.ep-name').value = curEp().name;
+    $('.ep-del').disabled = plan.episodes.length < 2;
+    $('.ep-all-wrap').hidden = plan.episodes.length < 2;
+  };
+  const nextName = () => { const n = plan.episodes.length; return n < 26 ? `${String.fromCharCode(65 + n)}篇` : `${n + 1}篇`; };
+  $('.ep-add').onclick = () => {
+    syncEp();
+    if (plan.episodes.length === 1 && curEp().name === '本編') curEp().name = 'A篇';
+    const ep = newEp(nextName(), { aspect: plan.aspect, seconds: plan.seconds });
+    plan.episodes.push(ep);
+    loadEp(ep.id); fill(); changed();
+    $('.ep-name').select();
+  };
+  $('.ep-dup').onclick = () => {
+    syncEp();
+    const src = curEp();
+    const ep = { ...structuredClone(src), id: crypto.randomUUID(), name: `${src.name}のコピー` };
+    ep.cuts.forEach((c) => { c.id = crypto.randomUUID(); });
+    plan.episodes.splice(plan.episodes.indexOf(src) + 1, 0, ep);
+    loadEp(ep.id); fill(); changed();
+  };
+  $('.ep-del').onclick = () => {
+    const ep = curEp();
+    if (plan.episodes.length < 2) return;
+    if (!confirm(`「${ep.name}」を消しますか？この篇のカットもなくなります。`)) return;
+    const i = plan.episodes.indexOf(ep);
+    plan.episodes.splice(i, 1);
+    loadEp(plan.episodes[Math.max(0, i - 1)].id); fill(); changed();
+  };
+  $('.ep-name').oninput = () => { curEp().name = $('.ep-name').value; renderEps(); $('.ep-name').focus(); changed(); };
+
   // ---- タブ・新規・削除
   for (const b of pane.querySelectorAll('.tabs button')) {
     b.onclick = () => {
@@ -553,20 +625,20 @@ function planPane() {
       pane.querySelectorAll('.pl-tab').forEach((t) => t.classList.toggle('on', t.classList.contains(b.dataset.tab)));
     };
   }
-  $('.new').onclick = async () => { await flush(); plan = blank(); $('.steps').textContent = ''; fill(); };
+  $('.new').onclick = async () => { await flush(); withEps(blank()); $('.steps').textContent = ''; fill(); };
   $('.del').onclick = async () => {
     clearTimeout(saveTimer); saveTimer = null;
     if (all.some((x) => x.id === plan.id)) {
       if (!confirm(`「${plan.title || '無題の企画'}」を削除しますか？はめた絵も消えます。`)) return;
       all = await window.hub.plans.remove(plan.id);
     }
-    plan = blank();
+    withEps(blank());
     fill();
   };
 
   (async () => {
     all = await window.hub.plans.list();
-    plan = all.length ? structuredClone([...all].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0]) : blank();
+    withEps(all.length ? structuredClone([...all].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0]) : blank());
     fill();
   })();
   return pane;

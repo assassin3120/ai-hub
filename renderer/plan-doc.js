@@ -155,6 +155,18 @@
     return `<div class="storyboard">${pages.join('')}</div>`;
   }
 
+  // 篇ごとの絵コンテ用に、その篇の画面比・尺・カットを持った企画を作る。
+  // all なら全篇、そうでなければ開いている篇だけ。篇が2つ以上あればタイトルに篇の名前を足す
+  function episodePlans(plan, { all = false } = {}) {
+    const eps = Array.isArray(plan.episodes) && plan.episodes.length ? plan.episodes : null;
+    if (!eps) return [plan];
+    const cur = eps.find((e) => e.id === plan.ep) ?? eps[0];
+    const named = (ep) => ({ ...plan, aspect: ep.aspect, seconds: ep.seconds, cuts: ep.cuts || [], title: eps.length > 1 ? `${plan.title || '無題の企画'}　${ep.name}` : plan.title });
+    // 開いている篇は、画面で直したばかりの値（plan.aspect など）を使う
+    const live = (ep) => (ep === cur && plan.cuts ? { ...ep, aspect: plan.aspect, seconds: plan.seconds, cuts: plan.cuts } : ep);
+    return (all ? eps : [cur]).map((ep) => named(live(ep)));
+  }
+
   // セリフ「名前：セリフ」を話す人とセリフに分ける
   const speech = (line) => {
     const m = String(line || '').trim().match(/^([^：:\n]{1,14})[：:]\s*([\s\S]+)$/);
@@ -307,7 +319,7 @@
 .cc-balloon::after { content: ''; position: absolute; left: -1.6mm; top: 2.6mm; border: .9mm solid transparent; border-right: 1.8mm solid #fff; border-left: 0; }
 `;
 
-  const api = { THEMES, FONTS, normalizeTheme, themeOf, ASPECTS, tc, totalDur, perPage, proposalHtml, storyboardHtml, contactSheetHtml, cascadeHtml, PLAN_CSS };
+  const api = { THEMES, FONTS, normalizeTheme, themeOf, ASPECTS, tc, totalDur, perPage, proposalHtml, storyboardHtml, contactSheetHtml, cascadeHtml, episodePlans, PLAN_CSS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.planDoc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -11,13 +11,22 @@ const { htmlToPdf } = require('./pdf');
 
 function planPdf(plan, kind, opts, outPath) {
   const imageUrl = (p) => pathToFileURL(p).href;
-  const body = kind === 'proposal' ? planDoc.proposalHtml(plan, { ...opts, imageUrl })
-    : kind === 'contact' ? planDoc.contactSheetHtml(plan, { imageUrl })
-      : kind === 'cascade' ? planDoc.cascadeHtml(plan, { imageUrl })
-        : planDoc.storyboardHtml(plan, { blank: kind === 'blank', pages: opts.pages, imageUrl });
+  // 絵コンテは篇ごとに作ってつなげる（opts.all なら全篇、そうでなければ開いている篇）。企画書に付けるときは全篇
+  const board = (fn, all) => planDoc.episodePlans(plan, { all }).map((p) => fn(p)).join('');
+  const body = kind === 'proposal'
+    ? planDoc.proposalHtml(plan, { ...opts, withStoryboard: false, imageUrl }) + (opts.withStoryboard ? board((p) => planDoc.storyboardHtml(p, { imageUrl }), true) : '')
+    : kind === 'contact' ? board((p) => planDoc.contactSheetHtml(p, { imageUrl }), opts.all)
+      : kind === 'cascade' ? board((p) => planDoc.cascadeHtml(p, { imageUrl }), opts.all)
+        : board((p) => planDoc.storyboardHtml(p, { blank: kind === 'blank', pages: opts.pages, imageUrl }), opts.all && kind !== 'blank');
   // 企画書は横、絵コンテは縦。同じ PDF の中でページごとに向きを変える
   const css = `@page land{size:A4 landscape;margin:0}@page port{size:A4 portrait;margin:0}.pp-page{page:land}.cs-page{page:land}.sb-page{page:port}.cc-page{page:port}body{margin:0}${planDoc.PLAN_CSS}`;
   return htmlToPdf(`<!doctype html><meta charset="utf-8"><style>${css}</style>${body}`, outPath, { preferCSSPageSize: true });
+}
+
+// ファイル名：絵コンテを1つの篇だけ書き出すときは篇の名前も付ける
+function fileTitle(plan, kind, opts) {
+  const one = kind !== 'proposal' && !opts.all;
+  return one ? planDoc.episodePlans(plan)[0].title || '無題' : plan.title || '無題';
 }
 
 function registerPlanIpc({ ask }) {
@@ -38,7 +47,7 @@ function registerPlanIpc({ ask }) {
     const { planDir, workDir, vault, issuer } = settings.get();
     const label = { proposal: '企画書', storyboard: '絵コンテ', contact: 'コンタクトシート', cascade: 'CMコンテ', blank: '絵コンテテンプレート' }[kind];
     const r = await dialog.showSaveDialog({
-      defaultPath: path.join(planDir || workDir || app.getPath('documents'), `${label}_${(plan.title || '無題').replace(/[\\/:*?"<>|]/g, '')}.pdf`),
+      defaultPath: path.join(planDir || workDir || app.getPath('documents'), `${label}_${fileTitle(plan, kind, opts).replace(/[\\/:*?"<>|]/g, '')}.pdf`),
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
     });
     if (r.canceled) return null;
