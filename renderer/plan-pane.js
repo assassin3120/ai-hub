@@ -23,7 +23,7 @@ function planPane() {
       <div class="pl-top">
         <input class="pl-title" data-f="title" placeholder="企画タイトル">
         <div class="tabs"><button type="button" data-tab="pl-doc" class="on">📝 企画書</button><button type="button" data-tab="pl-board">🎞 絵コンテ</button></div>
-        <span class="status"></span><button type="button" class="theme-btn"></button><button type="button" class="del">削除</button>
+        <span class="status"></span><button type="button" class="theme-btn"></button><button type="button" class="clear" title="この企画に書いた内容（企画書・リファレンス・篇・カット・絵）を全部消して、白紙に戻します">クリアする</button><button type="button" class="undo-clear" hidden>元に戻す</button><button type="button" class="del">削除</button>
       </div>
       <div class="pl-tab pl-doc on">
         <div class="pl-edit">
@@ -132,7 +132,8 @@ function planPane() {
     renderList();
     status.textContent = '保存しました';
   };
-  const changed = () => { status.textContent = ''; clearTimeout(saveTimer); saveTimer = setTimeout(persist, 600); };
+  let beforeClear = null; // クリアする前の企画（元に戻す用）
+  const changed = () => { if (beforeClear) hideUndo(); status.textContent = ''; clearTimeout(saveTimer); saveTimer = setTimeout(persist, 600); };
 
   const preview = () => {
     $('.paper').innerHTML = window.planDoc.proposalHtml(plan);
@@ -149,7 +150,7 @@ function planPane() {
       const eps = x.episodes?.length ? x.episodes : [{ cuts: x.cuts || [] }];
       const cutCount = eps.reduce((n, e) => n + (e.cuts || []).length, 0);
       li.append(el('b', null, x.title || '無題の企画'), el('span', null, `${(x.sections || []).length}章・${eps.length > 1 ? `${eps.length}篇・` : ''}${cutCount}カット`));
-      li.onclick = async () => { await flush(); withEps(structuredClone(x)); $('.steps').textContent = ''; fill(); };
+      li.onclick = async () => { hideUndo(); await flush(); withEps(structuredClone(x)); $('.steps').textContent = ''; fill(); };
       ul.append(li);
     }
   };
@@ -723,8 +724,32 @@ function planPane() {
       pane.querySelectorAll('.pl-tab').forEach((t) => t.classList.toggle('on', t.classList.contains(b.dataset.tab)));
     };
   }
-  $('.new').onclick = async () => { await flush(); withEps(blank()); $('.steps').textContent = ''; fill(); };
+  // クリア：この企画を白紙に戻す（一覧には残す）。直後なら「元に戻す」で戻せる
+  const hideUndo = () => { beforeClear = null; $('.undo-clear').hidden = true; };
+  $('.clear').onclick = async () => {
+    if (!confirm(`「${plan.title || '無題の企画'}」に書いた内容を全部消しますか？\n企画メモ・企画書・リファレンス・トンマナ・すべての篇とカット（はめた絵も）が白紙になります。\n消した直後なら「元に戻す」で戻せます。`)) return;
+    syncEp();
+    beforeClear = structuredClone(plan);
+    withEps({ ...blank(), id: plan.id });
+    $('.steps').textContent = '';
+    $('.sb-msg').textContent = '';
+    fill();
+    await persist();
+    status.textContent = 'クリアしました';
+    $('.undo-clear').hidden = false;
+  };
+  $('.undo-clear').onclick = async () => {
+    if (!beforeClear) return;
+    withEps(beforeClear);
+    hideUndo();
+    fill();
+    await persist();
+    status.textContent = '元に戻しました';
+  };
+
+  $('.new').onclick = async () => { hideUndo(); await flush(); withEps(blank()); $('.steps').textContent = ''; fill(); };
   $('.del').onclick = async () => {
+    hideUndo();
     clearTimeout(saveTimer); saveTimer = null;
     if (all.some((x) => x.id === plan.id)) {
       if (!confirm(`「${plan.title || '無題の企画'}」を削除しますか？はめた絵も消えます。`)) return;
