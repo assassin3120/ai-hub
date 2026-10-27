@@ -3,22 +3,38 @@
   --paper: #ece6dc;
   --paper-2: #e4ddd0;
   --red: #b2161e;
+  --red-rgb: 178, 22, 30;
+  --red-hover: #8f1017;
+  --on-red: var(--paper);
   --text: var(--red);
-  --sub: rgba(178, 22, 30, .62);
-  --faint: rgba(178, 22, 30, .32);
-  --rule: rgba(178, 22, 30, .28);
-  --wash: rgba(178, 22, 30, .07);
+  --sub: rgba(var(--red-rgb), .62);
+  --faint: rgba(var(--red-rgb), .32);
+  --rule: rgba(var(--red-rgb), .28);
+  --wash: rgba(var(--red-rgb), .07);
   --ok: #3f6b4a;
+  --shadow: rgba(90, 40, 30, .14);
+  --backdrop: rgba(60, 30, 25, .35);
   --hair: 1px solid var(--rule);
   --solid: 1px solid var(--red);
   --font: "Avenir Next", "A P-OTF 中ゴシックBBB Pr6N", "Hiragino Sans", "Noto Sans JP", -apple-system, sans-serif;
   color-scheme: light;
 }
+/* ダークモード：墨色の紙に明るい朱。Mac の設定に合わせるか、画面右上のボタンで固定できる */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #171513; --paper-2: #0f0e0c; --red: #f0564d; --red-rgb: 240, 86, 77; --red-hover: #ff7a70; --on-red: #171513;
+    --ok: #86b994; --shadow: rgba(0, 0, 0, .55); --backdrop: rgba(0, 0, 0, .6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #171513; --paper-2: #0f0e0c; --red: #f0564d; --red-rgb: 240, 86, 77; --red-hover: #ff7a70; --on-red: #171513;
+  --ok: #86b994; --shadow: rgba(0, 0, 0, .55); --backdrop: rgba(0, 0, 0, .6); color-scheme: dark;
+}
 
 * { box-sizing: border-box; }
 body { margin: 0; display: flex; height: 100vh; font-family: var(--font); font-synthesis-weight: none; font-size: 15px; font-weight: 500; line-height: 1.55; background: var(--paper); color: var(--text); -webkit-font-smoothing: antialiased; }
 ::placeholder { color: var(--faint); }
-::selection { background: var(--red); color: var(--paper); }
+::selection { background: var(--red); color: var(--on-red); }
 a { color: var(--red); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -34,8 +50,8 @@ button { font: inherit; color: var(--red); }
 input, select, textarea { font: inherit; color: var(--red); background: transparent; }
 :focus-visible { outline: 1px solid var(--red) !important; outline-offset: 3px; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--red) !important; }
-button.primary, form button, .primary { background: var(--red) !important; color: var(--paper) !important; border: var(--solid) !important; font-weight: 600; letter-spacing: .04em; }
-button.primary:hover, form button:hover, .primary:hover { background: #8f1017 !important; }
+button.primary, form button, .primary { background: var(--red) !important; color: var(--on-red) !important; border: var(--solid) !important; font-weight: 600; letter-spacing: .04em; }
+button.primary:hover, form button:hover, .primary:hover { background: var(--red-hover) !important; }
 button { transition: background .12s, color .12s; }
 
 /* 左のナビ */
@@ -170,7 +186,7 @@ button.link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .inv-edit .draft summary { cursor: pointer; font-weight: 700; }
 .inv-edit .draft textarea { width: 100%; height: 76px; margin: 8px 0; font-size: 14px; padding: 6px 0; border: 0; border-bottom: var(--hair); }
 .inv-preview { flex: 1; overflow: auto; padding: 32px; min-width: 0; background: var(--paper-2); }
-.inv-preview .paper { width: 794px; min-height: 1123px; margin: 0 auto; transform-origin: top center; zoom: .75; background: #fff; color: #222; box-shadow: 0 18px 40px rgba(90, 40, 30, .12); }
+.inv-preview .paper { width: 794px; min-height: 1123px; margin: 0 auto; transform-origin: top center; zoom: .75; background: #fff; color: #222; box-shadow: 0 18px 40px var(--shadow); }
 
 /* 企画・絵コンテ */
 .plan input, .plan select, .plan textarea { font: inherit; font-size: 15px; height: auto; padding: 6px 0; border: 0; border-bottom: var(--hair); border-radius: 0; min-width: 0; }
@@ -226,7 +242,7 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--red); }
 .plan .actions { display: flex; gap: 12px; align-items: center; padding-top: 8px; flex-wrap: wrap; }
 .pl-preview { flex: 1; min-width: 0; overflow: auto; padding: 36px; background: var(--paper-2); }
 .pl-preview .paper { zoom: .5; display: grid; gap: 40px; justify-content: safe center; }
-.pl-preview .pp-page { box-shadow: 0 30px 60px rgba(90, 40, 30, .14); }
+.pl-preview .pp-page { box-shadow: 0 30px 60px var(--shadow); }
 
 /* トンマナ */
 .tone { display: grid; gap: 10px; padding: 14px 0; border-top: var(--hair); border-bottom: var(--hair); }
@@ -234,7 +250,7 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--red); }
 .tone .drop.over { background: var(--wash); border-color: var(--red); }
 .tone .drop .shot { position: relative; width: 84px; height: 60px; background: #fff; }
 .tone .drop .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tone .drop .shot button { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; padding: 0; font-size: 11px; line-height: 1; border: 0; border-radius: 50%; background: var(--red); color: var(--paper); }
+.tone .drop .shot button { position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; padding: 0; font-size: 11px; line-height: 1; border: 0; border-radius: 50%; background: var(--red); color: var(--on-red); }
 .tone textarea { height: 64px; resize: vertical; }
 .tone .swatches { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
 .tone .swatches i { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--rule); display: inline-block; }
@@ -274,10 +290,10 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--red); }
 .cut .note { min-height: 70px; resize: vertical; line-height: 1.7; font-size: 15px; border-bottom: 0 !important; text-align: justify; }
 .cut .cut-tools { display: flex; flex-wrap: wrap; gap: 2px; }
 .plan .hint { font-size: 12px; color: var(--sub); line-height: 1.7; text-align: justify; }
-.sketch { border: 0; border-radius: 0; padding: 18px; width: min(92vw, 1100px); background: var(--paper); color: var(--red); box-shadow: 0 30px 80px rgba(60, 20, 20, .3); }
-.sketch::backdrop { background: rgba(60, 30, 25, .35); }
+.sketch { border: 0; border-radius: 0; padding: 18px; width: min(92vw, 1100px); background: var(--paper); color: var(--red); box-shadow: 0 30px 80px var(--shadow); }
+.sketch::backdrop { background: var(--backdrop); }
 .sketch .sk-tools { display: flex; gap: 6px; align-items: center; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
-.sketch .sk-tools button.on { background: var(--red); color: var(--paper); border-color: var(--red); }
+.sketch .sk-tools button.on { background: var(--red); color: var(--on-red); border-color: var(--red); }
 .sketch canvas { width: 100%; max-height: 72vh; object-fit: contain; box-shadow: inset 0 0 0 1px var(--rule); touch-action: none; cursor: crosshair; display: block; background: #fff; }
 
 /* 篇（A篇・B篇…）の切り替え */
@@ -291,3 +307,6 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--red); }
 .eps label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--sub); }
 .eps .ep-name { width: 180px; font-size: 15px; }
 .sb-tools .check { display: flex; align-items: center; gap: 4px; color: var(--red); }
+
+/* ダークモードの切り替えボタン */
+.plan .theme-btn { width: 34px; height: 34px; padding: 0; border: var(--hair); border-radius: 50%; font-size: 16px; line-height: 1; }

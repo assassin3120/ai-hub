@@ -22,7 +22,7 @@ function planPane() {
       <div class="pl-top">
         <input class="pl-title" data-f="title" placeholder="企画タイトル">
         <div class="tabs"><button type="button" data-tab="pl-doc" class="on">📝 企画書</button><button type="button" data-tab="pl-board">🎞 絵コンテ</button></div>
-        <span class="status"></span><button type="button" class="del">削除</button>
+        <span class="status"></span><button type="button" class="theme-btn"></button><button type="button" class="del">削除</button>
       </div>
       <div class="pl-tab pl-doc on">
         <div class="pl-edit">
@@ -617,6 +617,12 @@ function planPane() {
     loadEp(plan.episodes[Math.max(0, i - 1)].id); fill(); changed();
   };
   $('.ep-name').oninput = () => { curEp().name = $('.ep-name').value; renderEps(); $('.ep-name').focus(); changed(); };
+
+  // ---- ライト／ダークの切り替え
+  const themeBtn = $('.theme-btn');
+  const showTheme = (mode = getTheme()) => { themeBtn.textContent = THEME_LABEL[mode]; themeBtn.title = THEME_TITLE[mode]; };
+  themeBtn.onclick = () => showTheme(nextTheme());
+  showTheme();
 
   // ---- タブ・新規・削除
   for (const b of pane.querySelectorAll('.tabs button')) {
