@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('hub', {
   listConnectors: () => ipcRenderer.invoke('connectors:list'),
@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('hub', {
     step: (plan, step, opts) => ipcRenderer.invoke('plan:step', plan, step, opts),
     pdf: (plan, kind, opts) => ipcRenderer.invoke('plan:pdf', plan, kind, opts),
     saveFiles: (files, folderName) => ipcRenderer.invoke('plan:saveFiles', files, folderName),
+    cleanupReady: () => ipcRenderer.invoke('plan:cleanupReady'),
+    readDoc: (file) => ipcRenderer.invoke('plan:readDoc', webUtils.getPathForFile(file)),
+    cleanup: (planId, cut, aspect) => ipcRenderer.invoke('plan:cleanup', planId, cut, aspect),
   },
   openUrl: (url) => ipcRenderer.invoke('shell:openUrl', url),
   getSettings: () => ipcRenderer.invoke('settings:get'),

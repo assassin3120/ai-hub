@@ -8,6 +8,7 @@ const planDoc = require('./renderer/plan-doc');
 const settings = require('./settings');
 const obsidian = require('./obsidian');
 const { htmlToPdf } = require('./pdf');
+const comfy = require('./comfy');
 
 function planPdf(plan, kind, opts, outPath) {
   const imageUrl = (p) => pathToFileURL(p).href;
@@ -74,6 +75,29 @@ function registerPlanIpc({ ask }) {
     settings.set({ planDir: path.dirname(r.filePath) });
     shell.showItemInFolder(path.join(r.filePath, path.basename(files[0]?.name || '')));
     return r.filePath;
+  });
+  // 清書：コマのラフを、このMacの ComfyUI で Ryo の画風に描き直す。ト書きは Claude に短い英語の説明にしてもらって添える
+  // 企画書のファイル（PDF・Word・テキストなど）を Claude に読んでもらい、企画メモの文章にする
+  ipcMain.handle('plan:readDoc', async (event, file) => {
+    const fs = require('fs');
+    if (!file || !fs.existsSync(file)) throw new Error('ファイルが見つかりません');
+    if (/\.(txt|md|markdown)$/i.test(file)) return fs.readFileSync(file, 'utf8').slice(0, 20000);
+    const res = await ask(event.sender, plans.prompts.readDoc(file), { images: [file] });
+    const text = String(res.output || '').trim();
+    if (!text) throw new Error(res.error?.trim() || 'ファイルを読めませんでした');
+    return text;
+  });
+  ipcMain.handle('plan:cleanupReady', () => comfy.available());
+  ipcMain.handle('plan:cleanup', async (event, planId, cut, aspect) => {
+    if (!cut?.image) throw new Error('先にラフをコマに入れてください');
+    let prompt = '';
+    const text = [cut.note, cut.line].filter(Boolean).join(' / ').trim();
+    if (text) {
+      const res = await ask(event.sender, `次の絵コンテのト書きを、画像生成用の短い英語の説明（20語以内、カンマ区切り、人物・動き・場所・カメラの寄り引きだけ）にしてください。説明だけを1行で出力。\n\n${text}`, {}).catch(() => null);
+      prompt = String(res?.output || '').split('\n').map((l) => l.trim()).filter(Boolean).pop()?.replace(/^["'「]|["'」]$/g, '').slice(0, 300) || '';
+    }
+    const png = await comfy.cleanup(cut.image, { prompt, aspect });
+    return plans.saveImage(planId, `data:image/png;base64,${png.toString('base64')}`);
   });
   ipcMain.handle('shell:openUrl', (_e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
 }

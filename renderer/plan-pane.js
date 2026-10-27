@@ -12,6 +12,7 @@ const PLAN_STEPS = [
   { id: 'structure', label: '構成と本文' },
   { id: 'polish', label: '推敲' },
   { id: 'design', label: 'デザイン' },
+  { id: 'board', label: '絵コンテ' },
 ];
 
 function planPane() {
@@ -26,7 +27,7 @@ function planPane() {
       </div>
       <div class="pl-tab pl-doc on">
         <div class="pl-edit">
-          <label>企画メモ<textarea data-f="memo" rows="4" placeholder="例：ヨルシカ新曲のMV。夏の終わり、海辺の町。予算300万、尺4分、10月末納品。"></textarea></label>
+          <label>企画メモ<textarea data-f="memo" rows="4" placeholder="例：ヨルシカ新曲のMV。夏の終わり、海辺の町。予算300万、尺4分、10月末納品。&#10;企画書のファイル（PDF・Word・テキスト）をここにドロップすると、読み込んで絵コンテまで一気に作ります。"></textarea></label>
           <div class="pl-run">
             <button type="button" class="primary go">✨ 一気に仕上げる</button>
             <span class="checks">${PLAN_STEPS.map((s) => `<label><input type="checkbox" value="${s.id}" checked>${s.label}</label>`).join('')}</span>
@@ -309,6 +310,13 @@ function planPane() {
           items[i].textContent = `✓ ${s.label}（トンマナを使用）`; items[i].className = 'done'; continue;
         }
         const out = await window.hub.plans.step(plan, s.id);
+        if (s.id === 'board') {
+          const note = mergeBoard(out.episodes);
+          fill();
+          await persist();
+          items[i].dataset.note = note;
+          continue;
+        }
         if (s.id === 'refs') {
           const seen = new Set(plan.refs.map((r) => r.url || r.title));
           plan.refs.push(...out.refs.filter((r) => !seen.has(r.url || r.title)));
@@ -317,8 +325,10 @@ function planPane() {
         }
         fill();
         await persist();
-        items.forEach((li, j) => { if (j <= i) { li.textContent = `✓ ${steps[j].label}`; li.className = 'done'; } else li.textContent = `○ ${steps[j].label}`; });
+        items.forEach((li, j) => { if (j <= i) { li.textContent = `✓ ${steps[j].label}${li.dataset.note ? `（${li.dataset.note}）` : ''}`; li.className = 'done'; } else li.textContent = `○ ${steps[j].label}`; });
       }
+      const b = steps.findIndex((x) => x.id === 'board');
+      if (b >= 0 && items[b].className === 'now') { items[b].textContent = `✓ 絵コンテ（${items[b].dataset.note}）`; items[b].className = 'done'; }
     } catch (e) {
       const li = ol.querySelector('.now');
       if (li) { li.textContent = `× ${li.textContent.slice(2).replace('中…', '')}：${e.message.replace(/^.*Error: /, '')}`; li.className = 'err'; }
@@ -342,6 +352,7 @@ function planPane() {
 
   // ---- 絵コンテ
   const setImage = async (cut, blob) => {
+    delete cut.sketch; delete cut.cleaned;
     cut.image = await window.hub.plans.saveImage(plan.id, await readAsDataUrl(blob));
   };
   // 何枚か落としたら、そのカットから順にはめる（足りなければカットを足す）。
@@ -361,6 +372,7 @@ function planPane() {
           if (!dataUrl) continue;
           const at = sheet.page * sheet.perPage + i;
           while (plan.cuts.length <= at) plan.cuts.push({ id: crypto.randomUUID(), dur: 3, note: '' });
+          delete plan.cuts[at].sketch; delete plan.cuts[at].cleaned;
           plan.cuts[at].image = await window.hub.plans.saveImage(plan.id, dataUrl);
           filled++;
         }
@@ -385,6 +397,34 @@ function planPane() {
   };
   $('.pc-import').onclick = () => $('.pc-files').click();
   $('.pc-files').onchange = async () => { await dropImages(plan.cuts.length, $('.pc-files').files); $('.pc-files').value = ''; };
+
+  // ---- 清書（ラフ → 自分の画風）。何コマか続けて押しても、順番に描き直す
+  let cleanupReady = false;
+  window.hub.plans.cleanupReady?.().then((ok) => { cleanupReady = ok; if (ok && plan) renderCuts(); }).catch(() => {});
+  const cleaning = new Set();
+  const cleanupCut = async (cut, frame) => {
+    if (cleaning.has(cut.id)) return;
+    const msg = $('.sb-msg');
+    const owner = plan;
+    cleaning.add(cut.id);
+    renderCuts();
+    msg.classList.remove('err');
+    msg.textContent = `清書中…（${cleaning.size}コマ。1コマ1〜2分かかります）`;
+    try {
+      const sketch = cut.image === cut.cleaned && cut.sketch ? cut.sketch : cut.image;
+      const out = await window.hub.plans.cleanup(owner.id, { image: sketch, note: cut.note, line: cut.line }, owner.aspect);
+      cut.sketch = sketch;
+      cut.cleaned = out;
+      cut.image = out;
+      msg.textContent = '清書しました。↺ でラフと見比べられます';
+    } catch (e) {
+      msg.textContent = `清書できませんでした：${e.message.replace(/^.*Error: /, '')}`;
+      msg.classList.add('err');
+    } finally {
+      cleaning.delete(cut.id);
+      if (plan === owner) { renderCuts(); changed(); } else { all = await window.hub.plans.save(owner); renderList(); }
+    }
+  };
 
   let dragFrom = null;
   const renderCuts = () => {
@@ -457,7 +497,10 @@ function planPane() {
       const ft = el('div', 'frame-tools');
       const fbtn = (label, title, fn) => { const x = el('button', null, label); x.type = 'button'; x.title = title; x.onclick = (e) => { e.stopPropagation(); fn(); }; ft.append(x); };
       fbtn('✏️', 'ここに描く', () => openSketch(cut));
-      if (cut.image) fbtn('×', '絵を外す', () => { delete cut.image; renderCuts(); changed(); });
+      if (cut.image && cleanupReady) fbtn('✨', '清書：このラフを自分の画風で描き直す（このMacの中で生成）', () => cleanupCut(cut, frame));
+      if (cut.sketch) fbtn('↺', cut.image === cut.sketch ? '清書した絵に戻す' : 'ラフに戻す', () => { [cut.image, cut.cleaned] = cut.image === cut.sketch ? [cut.cleaned, cut.sketch] : [cut.sketch, cut.image]; renderCuts(); changed(); });
+      if (cut.image) fbtn('×', '絵を外す', () => { delete cut.image; delete cut.sketch; delete cut.cleaned; renderCuts(); changed(); });
+      if (cleaning.has(cut.id)) frame.append(el('div', 'cleaning', '清書中…'));
       frame.append(ft, picker);
 
       const texts = el('div', 'texts');
@@ -569,11 +612,60 @@ function planPane() {
   dlg.querySelector('.clear').onclick = () => { undo.push(ctx.getImageData(0, 0, canvas.width, canvas.height)); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); };
   dlg.querySelector('.cancel').onclick = () => dlg.close();
   dlg.querySelector('.ok').onclick = async () => {
+    delete sketchCut.sketch; delete sketchCut.cleaned;
     sketchCut.image = await window.hub.plans.saveImage(plan.id, canvas.toDataURL('image/png'));
     dlg.close();
     renderCuts();
     changed();
   };
+
+  // AI が作った篇とカットを入れる。すでにカットのある篇は上書きしない（手で直したものを守る）
+  const mergeBoard = (eps = []) => {
+    syncEp();
+    const done = [];
+    const kept = [];
+    // まだ何も入っていない「本編」だけなら、AI の篇で置き換える
+    if (plan.episodes.length === 1 && !plan.episodes[0].cuts.length && (eps.length > 1 || eps[0]?.name !== plan.episodes[0].name)) plan.episodes = [];
+    for (const e of eps) {
+      const same = plan.episodes.find((x) => x.name === e.name);
+      if (same?.cuts.length) { kept.push(e.name); continue; }
+      const seconds = e.seconds || e.cuts.reduce((n, c) => n + c.dur, 0);
+      if (same) Object.assign(same, { cuts: e.cuts, seconds: same.seconds || seconds, aspect: e.aspect || same.aspect });
+      else plan.episodes.push({ ...newEp(e.name, { aspect: e.aspect, seconds }), cuts: e.cuts });
+      done.push(`${e.name} ${e.cuts.length}カット`);
+    }
+    if (!plan.episodes.length) plan.episodes = [newEp('本編', plan)];
+    const first = plan.episodes.find((x) => done.some((d) => d.startsWith(`${x.name} `)));
+    loadEp((first ?? curEp()).id);
+    return [done.join('・'), kept.length ? `${kept.join('・')} は作成済みなのでそのまま` : ''].filter(Boolean).join('／') || '新しい篇はありません';
+  };
+
+  // ---- 企画書のファイルを企画メモに投げ込む → 読み込んだら一気に仕上げる
+  const memo = $('[data-f=memo]');
+  memo.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); memo.classList.add('over'); } });
+  memo.addEventListener('dragleave', () => memo.classList.remove('over'));
+  memo.addEventListener('drop', async (e) => {
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    e.preventDefault();
+    e.stopPropagation();
+    memo.classList.remove('over');
+    const ol = $('.steps');
+    ol.innerHTML = '';
+    const li = el('li', 'now', `✱ 「${f.name}」を読み込み中…`);
+    ol.append(li);
+    try {
+      const text = await window.hub.plans.readDoc(f);
+      plan.memo = [plan.memo.trim(), text.trim()].filter(Boolean).join('\n\n');
+      memo.value = plan.memo;
+      if (!plan.title) { plan.title = f.name.replace(/\.[^.]+$/, ''); $('[data-f=title]').value = plan.title; }
+      await persist();
+      $('.go').click();
+    } catch (err) {
+      li.textContent = `× 読み込めませんでした：${err.message.replace(/^.*Error: /, '')}`;
+      li.className = 'err';
+    }
+  });
 
   // ---- 篇の切り替え・追加・複製・削除
   const epTitle = () => (plan.episodes.length > 1 ? `${plan.title || '無題の企画'}　${curEp().name}` : plan.title);

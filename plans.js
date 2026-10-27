@@ -110,6 +110,27 @@ ${JSON_ONLY}
 ${outline(plan)}`;
   },
 
+  // 企画からまとめて絵コンテを作る。篇がいくつあるかも企画から読み取る（すでに名前の付いた篇があればそれに合わせる）
+  board: (plan) => {
+    const named = (plan.episodes || []).filter((e) => e.name && e.name !== '本編');
+    return `【絵コンテ】次の企画を、映像の絵コンテに起こしてください。
+企画に複数の篇（A篇・B篇、15秒版・30秒版、シリーズの各話など）があれば篇ごとに分け、なければ1つの篇（name は「本編」）にする。
+${named.length ? `すでにある篇：${named.map((e) => `「${e.name}」`).join('・')}。この名前を使う（足りない篇があれば足してよい）。\n` : ''}篇ごとに、尺（秒。企画に書いてあればそれ、なければ内容に合う長さ）、画面比（16:9 / 9:16 / 4:3 / 1:1 / 2.39:1。縦型SNSなら 9:16）、カット割りを書く。
+1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・テロップ・音）と、セリフやナレーション（line。話す人がいれば「名前：セリフ」、なければ空）を書く。カットの尺の合計は篇の尺に合わせる。
+${JSON_ONLY}
+形式: {"episodes":[{"name":"A篇","seconds":30,"aspect":"16:9","cuts":[{"dur":3,"note":"ト書き","line":"名前：セリフ"}]}]}
+
+企画書:
+${outline(plan)}
+${plan.memo ? `\n企画メモ:\n${plan.memo}` : ''}`;
+  },
+
+  // 投げ込まれた企画書のファイルを読んで、企画メモにする
+  readDoc: (file) => `【企画の読み込み】次のファイルを Read で読んで、映像の企画メモにまとめてください。
+案件名・目的・ターゲット・尺や本数・篇（バージョン）・媒体・トンマナ・決まっている演出やセリフ・スケジュールや予算など、書いてあることは落とさず、日本語の箇条書きで。書いていないことは足さない。メモの本文だけを出力。
+
+ファイル: ${file}`,
+
   cuts: (plan, seconds) => `【カット割り】次の企画から、映像の絵コンテのカット割りを作ってください。
 ${epNote(plan)}${seconds ? `全体の尺はおよそ${seconds}秒。` : ''}1カットごとに尺（秒）と、ト書き（画面に映るもの・カメラワーク・テロップ・音）と、セリフやナレーション（line。話す人がいれば「名前：セリフ」、なければ空）を書く。
 ${JSON_ONLY}
@@ -134,6 +155,12 @@ const parsers = {
   polish: (j) => ({ title: str(j.title), subtitle: str(j.subtitle), tagline: str(j.tagline), sections: sections(j) }),
   design: (j) => ({ theme: THEMES[j.theme] ? j.theme : 'clean', accent: /^#[0-9a-f]{6}$/i.test(j.accent) ? j.accent : '#e8453c' }),
   tone: (j) => { const t = normalizeTheme(j); return { theme: 'custom', customTheme: t, accent: t.accent }; },
+  board: (j) => ({ episodes: (Array.isArray(j.episodes) ? j.episodes : []).map((e) => ({
+    name: str(e.name) || '本編',
+    seconds: Number(e.seconds) || 0,
+    aspect: ['16:9', '9:16', '4:3', '1:1', '2.39:1'].includes(e.aspect) ? e.aspect : '16:9',
+    cuts: (Array.isArray(e.cuts) ? e.cuts : []).map((c) => ({ id: crypto.randomUUID(), dur: Number(c.dur) || 0, note: str(c.note), line: str(c.line) })),
+  })).filter((e) => e.cuts.length) }),
   cuts: (j) => ({ cuts: (Array.isArray(j.cuts) ? j.cuts : []).map((c) => ({ id: crypto.randomUUID(), dur: Number(c.dur) || 0, note: str(c.note), line: str(c.line) })) }),
 };
 
